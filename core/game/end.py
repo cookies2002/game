@@ -1,3 +1,9 @@
+from core.xp import add_xp
+
+for player in winning_players:
+    role_type = await get_user_role(player.id)
+    await add_xp(user_id=player.id, role_type=role_type, amount=50)
+    
 for player in winning_team:
     result = await add_xp(player.id, 50)  # 🏆 50 XP for winning
 
