@@ -6,10 +6,10 @@ from pyrogram.types import Message
 from pymongo import MongoClient
 
 # Load from environment or set your Mongo URI and bot token
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "your-bot-token")
-API_ID = int(os.getenv("API_ID", 123456))
-API_HASH = os.getenv("API_HASH", "your-api-hash")
+MONGO_URL = os.getenv("MONGO_URL", "mongodb+srv://xarwin2:xarwin2002@cluster0.qmetx2m.mongodb.net/?retryWrites=true&w=majority")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8098135944:AAF-zdTqjoYwW3fDdS7BY9zEX5BaiK235iY")
+API_ID = int(os.getenv("API_ID", 24977986))
+API_HASH = os.getenv("API_HASH", "abc6095228862c7502397c928bd7999e")
 
 bot = Client("fairy-vs-villain", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 client = MongoClient(MONGO_URL)
