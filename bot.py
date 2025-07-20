@@ -1,13 +1,5 @@
-# ✅ Updated `bot.py` with all discussed features including:
-# - Auto-start after 4 players with countdown
-# - Role DM and power instructions
-# - Voting system (villain elimination only)
-# - Leveling, upgrade with coins
-# - /powers, /instructions, and corrected /usepower with @username
-# - Commoners cannot attack
-# - Max players = 15
-
-# -- Begin Full Code --
+# ✅ Complete Working Code with Welcome Message Support
+# -----------------------------------------------
 
 import os
 import random
@@ -67,7 +59,6 @@ def get_power(role, level):
     return powers[index]
 
 def assign_roles(players):
-    roles = ["Fairy", "Villain", "Commoner"]
     total_players = len(players)
     num_villains = max(1, total_players // 4)
     num_fairies = max(1, total_players // 3)
@@ -77,9 +68,26 @@ def assign_roles(players):
     random.shuffle(players)
     return {player: role_list[i] for i, player in enumerate(players)}
 
-# Game Commands
+# Private Welcome Message
+@bot.on_message(filters.private & filters.command("start"))
+async def welcome_user(client, message: Message):
+    await message.reply(
+        """
+👋 **Welcome to Fairy Power Game Bot!**
 
-@bot.on_message(filters.command("start"))
+✨ Team-based mystery game with Fairies, Villains, and Commoners.
+🧠 Use powers, vote wisely, and level up!
+
+🎮 Group Admins: Use /start in a group to create a new game.
+👥 Players: Use /join to enter and wait for game to begin.
+
+🔍 Use /instructions for rules.
+💡 Use /help to see all commands.
+        """
+    )
+
+# Game Commands (Group)
+@bot.on_message(filters.command("start") & filters.group)
 async def start_game(client, message: Message):
     chat_id = message.chat.id
     if chat_id in active_games:
@@ -136,8 +144,7 @@ async def begin_game(chat_id):
         await bot.send_message(user_id, msg)
     await bot.send_message(chat_id, "🎮 Game started! Players received their roles in DM.")
 
-# ... rest of your existing command handlers ...
-
+# XP & Leaderboard
 @bot.on_message(filters.command("myxp"))
 async def myxp(client, message: Message):
     user = get_user(message.from_user.id)
@@ -181,4 +188,5 @@ async def instructions(client, message: Message):
 - /upgrade to level up and unlock stronger powers
     """)
 
+# Start the bot
 bot.run()
