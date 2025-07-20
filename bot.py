@@ -17,21 +17,31 @@ used_powers = set()
 votes = {}
 xp_data = {}
 
-role_powers = {
+# 🌸 Fairy Roles and Powers
+FAIRIES = {
     "Fairy Sparkle": "✨ Can deflect a villain's attack once.",
-    "Fairy Healer": "💖 Can heal and revive one fallen player.",
-    "Fairy Shield": "🛡️ Can protect a player from being attacked.",
-    "Fairy Vision": "🔮 Can reveal the role of another player.",
-    "Fairy Wind": "🍃 Can confuse a villain's action.",
-    
-    "Dark Slayer": "💀 Can instantly eliminate a player.",
-    "Shadow Mage": "🧿 Can block a player's power for 1 round.",
-    "Mind Thief": "🧠 Can steal another player’s power.",
-    "Fear Bringer": "😱 Can make 2 players unable to vote.",
-    "Chaos Master": "🔥 Can cause random chaos among powers.",
-    
-    "Commoner": "🙂 Can vote and help Fairies win. Earn XP by voting."
+    "Moonlight Fairy": "🌕 Reveals role of 1 player each night.",
+    "Healing Fairy": "💖 Revives a fallen Fairy once.",
+    "Wind Fairy": "🌪️ Can dodge one vote or attack.",
+    "Fire Fairy": "🔥 If attacked, burns attacker too (both lose)."
 }
+
+# 😈 Villain Roles and Powers
+VILLAINS = {
+    "Dark Lord": "🔮 Can kill one player each night.",
+    "Nightmare": "🌘 Blocks a player's power for 1 turn.",
+    "Fear Monger": "😱 Blocks 2 votes in day phase.",
+    "Shadow Reaper": "⚔️ Kills and steals 20 coins from victim.",
+    "Soul Thief": "👻 Steals XP from a player instead of killing."
+}
+
+# 👥 Commoner Role (no powers, but can vote)
+COMMONERS = {
+    "Brave Commoner": "🗳️ No power, but your vote matters.",
+    "Smart Commoner": "📚 Earns more XP per vote.",
+    "Lucky Commoner": "🍀 Gets 5 bonus coins randomly."
+}
+
 
 @bot.on_message(filters.command("start") & filters.group)
 async def start_game(client, message: Message):
