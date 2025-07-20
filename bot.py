@@ -66,7 +66,11 @@ async def join_game(client, message: Message):
         return await message.reply("❌ No game lobby! Use /startgame to begin.")
     if any(p["id"] == user.id for p in lobbies[chat_id]):
         return await message.reply("✅ You already joined.")
-    lobbies[chat_id].append({"id": user.id, "name": user.mention, "alive": True})
+    lobbies[chat_id].append({
+    "id": user.id,
+    "name": user.mention,
+    "username": user.username.lower() if user.username else user.first_name.lower(),
+    "alive": True
     await message.reply(f"🙋 {user.mention} joined! ({len(lobbies[chat_id])}/15)")
     if 4 <= len(lobbies[chat_id]) <= 15:
         await asyncio.sleep(5)
@@ -174,10 +178,9 @@ async def vote_handler(client, message):
     target_username = message.command[1].lstrip("@").lower()
 
     target = next(
-        (p for p in players if p["username"].lower() == target_username and p["alive"]),
-        None
-    )
-
+    (p for p in players if p.get("username", "").lower() == target_username and p["alive"]),
+    None
+)
     if not target:
         await message.reply("❌ Target not found or not alive.")
         return
@@ -209,8 +212,6 @@ async def vote_handler(client, message):
 
         # Clear votes for next round
         game_data["votes"] = {}
-
-
             
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
