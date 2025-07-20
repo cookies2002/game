@@ -13,10 +13,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Bot credentials
-API_ID = int(os.getenv("24977986"))
-API_HASH = os.getenv("abc6095228862c7502397c928bd7999e")
-BOT_TOKEN = os.getenv("8098135944:AAF-zdTqjoYwW3fDdS7BY9zEX5BaiK235iY")
-MONGO_URL = os.getenv("mongodb+srv://xarwin2:xarwin2002@cluster0.qmetx2m.mongodb.net/?retryWrites=true&w=majority")
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MONGO_URL = os.getenv("MONGO_URL")
 
 bot = Client("fairy_vs_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 client = MongoClient(MONGO_URL)
