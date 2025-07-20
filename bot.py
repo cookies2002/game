@@ -60,42 +60,69 @@ async def start_game(client, message: Message):
 # /join
 @bot.on_message(filters.command("join"))
 async def join_game(client, message: Message):
-    chat_id = message.chat.id
-    user = message.from_user
-    if chat_id not in lobbies:
-        return await message.reply("❌ No game lobby! Use /startgame to begin.")
-    if any(p["id"] == user.id for p in lobbies[chat_id]):
-        return await message.reply("✅ You already joined.")
-    lobbies[chat_id].append({
-    "id": user.id,
-    "name": user.mention,
-    "username": user.username.lower() if user.username else user.first_name.lower(),
-    "alive": True
-    await message.reply(f"🙋 {user.mention} joined! ({len(lobbies[chat_id])}/15)")
-    if 4 <= len(lobbies[chat_id]) <= 15:
-        await asyncio.sleep(5)
-        players = lobbies.pop(chat_id)
-        random.shuffle(players)
-        roles_assigned = []
-        f_count, v_count = 2, 1
-        for p in players:
-            if f_count > 0:
-                role_type = "Fairy"
-                f_count -= 1
-            elif v_count > 0:
-                role_type = "Villain"
-                v_count -= 1
-            else:
-                role_type = "Commoner"
-            role_name = random.choice(roles[role_type])
-            roles_assigned.append({**p, "role": role_name, "type": role_type})
-        games[chat_id] = {"players": roles_assigned, "votes": {}, "phase": "day"}
-        await message.reply("🎲 Roles assigned! Check your DM for your role and power.")
-        for p in roles_assigned:
-            try:
-                await client.send_message(p["id"], f"🎭 You are a {p['type']} - {p['role']}\n\n🧙 Power: {powers[p['role']]}\n\nUse /usepower in group to activate it.")
-            except:
-                pass
+    chat_id = message.chat.id
+    user = message.from_user
+
+    if chat_id not in lobbies:
+        return await message.reply("❌ No game lobby! Use /startgame to begin.")
+
+    if any(p["id"] == user.id for p in lobbies[chat_id]):
+        return await message.reply("✅ You already joined.")
+
+    # Add player to lobby
+    lobbies[chat_id].append({
+        "id": user.id,
+        "name": user.mention,
+        "username": user.username.lower() if user.username else user.first_name.lower(),
+        "alive": True,
+        "power_used": False,
+        "xp": 0,
+        "coins": 0,
+        "level": 1,
+        "vote": None
+    })
+
+    await message.reply(f"🙋 {user.mention} joined! ({len(lobbies[chat_id])}/15)")
+
+    # Auto start when enough players
+    if 4 <= len(lobbies[chat_id]) <= 15:
+        await asyncio.sleep(5)
+        players = lobbies.pop(chat_id)
+        random.shuffle(players)
+        roles_assigned = []
+
+        f_count, v_count = 2, 1  # Minimum roles
+        for p in players:
+            if f_count > 0:
+                role_type = "Fairy"
+                f_count -= 1
+            elif v_count > 0:
+                role_type = "Villain"
+                v_count -= 1
+            else:
+                role_type = "Commoner"
+
+            role_name = random.choice(roles[role_type])
+            roles_assigned.append({**p, "role": role_name, "type": role_type})
+
+        games[chat_id] = {
+            "players": roles_assigned,
+            "votes": {},
+            "phase": "day"
+        }
+
+        await message.reply("🎲 Roles assigned! Check your DM for your role and power.")
+
+        # Send role info via DM
+        for p in roles_assigned:
+            try:
+                await client.send_message(
+                    p["id"],
+                    f"🎭 You are a {p['type']} - {p['role']}\n\n🧙 Power: {powers[p['role']]}\n\nUse /usepower in group to activate it."
+                )
+            except:
+                pass
+                
 
 # /usepower
 @bot.on_message(filters.command("usepower"))
