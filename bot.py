@@ -140,8 +140,47 @@ async def use_power(client, message: Message):
 # /vote
 @bot.on_message(filters.command("vote"))
 async def vote_player(client, message: Message):
-    await message.reply("🗳️ Vote registered! (Voting system placeholder)")
+    chat_id = message.chat.id
+    user = message.from_user
 
+    if chat_id not in games:
+        return await message.reply("⚠️ No game in progress.")
+
+    if len(message.command) < 2:
+        return await message.reply("❌ Usage: /vote @username")
+
+    target_username = message.command[1].lstrip("@")
+
+    players = games[chat_id]["players"]
+    voter = next((p for p in players if p["id"] == user.id and p["alive"]), None)
+    target = next((p for p in players if p["name"].split('@')[-1].lower() == target_username.lower() and p["alive"]), None)
+
+    if not voter:
+        return await message.reply("🚫 You are not allowed to vote (dead or not in game).")
+
+    if not target:
+        return await message.reply("❌ Target not found or not alive.")
+
+    games[chat_id]["votes"][user.id] = target["id"]
+    await message.reply("🗳️ Vote registered!")
+
+    # Tally and eliminate if majority reached
+    vote_counts = {}
+    for vote in games[chat_id]["votes"].values():
+        vote_counts[vote] = vote_counts.get(vote, 0) + 1
+
+    max_votes = max(vote_counts.values(), default=0)
+    majority = len([p for p in players if p["alive"]]) // 2 + 1
+
+    for pid, count in vote_counts.items():
+        if count >= majority:
+            eliminated = next((p for p in players if p["id"] == pid), None)
+            if eliminated:
+                eliminated["alive"] = False
+                await client.send_message(chat_id, f"⚔️ {eliminated['name']} was eliminated by vote!")
+                games[chat_id]["votes"] = {}  # Reset for next round
+            break
+            
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
 async def upgrade_power(client, message: Message):
