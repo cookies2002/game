@@ -14,5 +14,12 @@ async def get_group_top_players(chat_id: int, limit=10):
         ("level", -1),
         ("xp", -1)
     ]).limit(limit).to_list(length=limit)
+
+async def update_user(user_id: int, update_data: dict):
+    await users_collection.update_one(
+        {"_id": user_id},
+        {"$set": update_data}
+    )
+    
     
   
