@@ -1,5 +1,3 @@
-# This is a placeholder. The actual bot.py was built and shown in canvas.
-# In your real environment, copy the final version from the canvas or export here.
 import os
 import random
 import asyncio
@@ -43,7 +41,7 @@ VILLAIN_CHARACTERS = {
 COMMONER_ROLE = {"power": None, "description": "Support fairies by voting. Gain XP by surviving and voting."}
 
 MIN_PLAYERS = 4
-MAX_PLAYERS = 20
+MAX_PLAYERS = 15
 
 active_games = {}  # group_id -> game data
 
@@ -73,8 +71,8 @@ def assign_roles(members):
 async def send_dm(client, user_id, text):
     try:
         await client.send_message(user_id, text)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"DM failed for {user_id}: {e}")
 
 async def update_user(user_id, update_data):
     users_col.update_one({"user_id": user_id}, {"$set": update_data}, upsert=True)
@@ -82,11 +80,28 @@ async def update_user(user_id, update_data):
 async def add_xp_and_coins(user_id, xp=10, coins=5):
     users_col.update_one({"user_id": user_id}, {"$inc": {"xp": xp, "coins": coins}}, upsert=True)
 
-# --- Commands ---
+# --- Game Logic ---
+async def start_game(client, chat_id):
+    players = active_games[chat_id]["players"]
+    roles = assign_roles(players)
+    game_data = {}
+    
+    for user, role in zip(players, roles):
+        team, char_name, char_data = role
+        game_data[user.id] = {"team": team, "character": char_name, "power": char_data["power"], "alive": True}
 
+        power_info = f"\n\n🌀 Power: {char_data['power']}\n📖 {char_data['description']}" if char_data['power'] else "\n\nNo special power. Support by voting."
+        guide = "\n\nTo use your power, reply to someone with /usepower in the group."
+        await send_dm(client, user.id, f"🎭 You are **{char_name}** ({team.upper()}){power_info}{guide}")
+        await update_user(user.id, {"team": team, "character": char_name})
+
+    active_games[chat_id]["state"] = game_data
+    await client.send_message(chat_id, "🎮 Game started! Players received their roles in DM.")
+
+# --- Commands ---
 @bot.on_message(filters.command("start"))
 async def start_command(client, message: Message):
-    await message.reply("\u2728 Welcome to Fairy vs Villain Game! Use /join to enter the game. Minimum 4 players needed.")
+    await message.reply("✨ Welcome to Fairy vs Villain Game! Use /join to enter the game. Minimum 4 players needed. Maximum 15 players allowed.")
 
 @bot.on_message(filters.command("join"))
 async def join_game(client, message: Message):
@@ -94,27 +109,32 @@ async def join_game(client, message: Message):
     user = message.from_user
 
     if chat_id not in active_games:
-        active_games[chat_id] = {"players": []}
+        active_games[chat_id] = {"players": [], "timer_started": False}
 
-    if user.id in [p.id for p in active_games[chat_id]["players"]]:
-        await message.reply("You already joined the game.")
-        return
+    players = active_games[chat_id]["players"]
 
-    active_games[chat_id]["players"].append(user)
-    await message.reply(f"✅ {user.mention} joined the game!")
+    if user.id in [p.id for p in players]:
+        return await message.reply("You already joined the game.")
 
-    if len(active_games[chat_id]["players"]) >= MIN_PLAYERS:
-        await start_game(client, chat_id)
+    if len(players) >= MAX_PLAYERS:
+        return await message.reply("❌ Max 15 players reached.")
+
+    players.append(user)
+    await message.reply(f"✅ {user.mention} joined the game! Players: {len(players)}/{MAX_PLAYERS}")
+
+    if len(players) == MIN_PLAYERS and not active_games[chat_id]["timer_started"]:
+        active_games[chat_id]["timer_started"] = True
+        await client.send_message(chat_id, "🕒 4 players joined. Waiting 60 seconds for more players before starting game...")
+        await asyncio.sleep(60)
+        if len(active_games[chat_id]["players"]) >= MIN_PLAYERS:
+            await start_game(client, chat_id)
 
 @bot.on_message(filters.command("leave"))
 async def leave_game(client, message: Message):
     chat_id = message.chat.id
     user = message.from_user
 
-    if chat_id not in active_games:
-        return await message.reply("No active game to leave.")
-
-    if user not in active_games[chat_id]["players"]:
+    if chat_id not in active_games or user not in active_games[chat_id]["players"]:
         return await message.reply("You are not part of the current game.")
 
     active_games[chat_id]["players"].remove(user)
@@ -138,11 +158,10 @@ async def use_power(client, message: Message):
     if target.id not in state or not state[target.id]["alive"]:
         return await message.reply("❌ Invalid or dead target.")
 
-    attacker = message.from_user
     state[target.id]["alive"] = False
-    await send_dm(client, attacker.id, f"✅ You used your power on {target.mention}. It was successful!")
-    await client.send_message(chat_id, f"💀 {target.mention} was defeated! 🎯 Attacked by: {attacker.mention}")
-    await add_xp_and_coins(attacker.id, xp=20, coins=15)
+    await send_dm(client, user_id, f"✅ You used your power on {target.mention}. It was successful!")
+    await client.send_message(chat_id, f"💀 {target.mention} was defeated! 🎯 Attacked by: {message.from_user.mention}")
+    await add_xp_and_coins(user_id, xp=20, coins=15)
 
 @bot.on_message(filters.command("myxp"))
 async def show_xp(client, message: Message):
@@ -160,7 +179,7 @@ async def global_leaderboard(client, message: Message):
     top = list(users_col.find().sort("xp", -1).limit(5))
     text = "🌍 Global Leaderboard:\n"
     for i, user in enumerate(top, 1):
-        text += f"{i}. ID: `{user['user_id']}` - XP: {user.get('xp',0)}\n"
+        text += f"{i}. ID: `{user['user_id']}` - XP: {user.get('xp', 0)}\n"
     await message.reply(text)
 
 @bot.on_message(filters.command("help"))
@@ -168,7 +187,7 @@ async def help_menu(client, message: Message):
     await message.reply(
         "📚 **Fairy vs Villain Bot Help**\n"
         "\n📜 **Game Rules:**"
-        "\n- Min 4 players required."
+        "\n- Min 4 players required. Max 15."
         "\n- Roles: Fairy, Villain, Commoner."
         "\n- Powers used by replying to targets using /usepower."
         "\n- Only attacker sees success in DM. Group sees if someone is defeated."
