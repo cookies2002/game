@@ -5,6 +5,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from pyrogram.enums import ParseMode
 
 load_dotenv()
 
@@ -281,7 +282,7 @@ async def local_leaderboard(client, message: Message):
 # /help
 @bot.on_message(filters.command("help"))
 async def help_menu(client, message: Message):
-    help_text = r"""
+    help_text = """
 <b>🧚 Welcome to Fairy vs Villain!</b>
 
 <b>🎲 How to Play:</b>
@@ -329,10 +330,8 @@ async def help_menu(client, message: Message):
 
 Good luck, have fun, and may the best team win! 🧚‍♀️👹
 """
-    await message.reply_text(help_text, parse_mode="html")
-
-
-
+    await message.reply_text(help_text, parse_mode=ParseMode.HTML)
+    
 # /end
 @bot.on_message(filters.command("end"))
 async def end_game(client, message: Message):
