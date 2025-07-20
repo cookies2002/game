@@ -1,46 +1,34 @@
-# core/xp.py
-from database.users import get_user_stats, update_user_stats
+from pyrogram.enums import ParseMode
+from pyrogram.errors import PeerIdInvalid
 from utils.levels import get_upgrade_info
 
-async def add_xp(user_id: int, amount: int):
-    stats = await get_user_stats(user_id)
-    if not stats:
+async def notify_level_up(user_id: int, new_level: int, role_type: str):
+    upgrade = get_upgrade_info(role_type, new_level - 1)
+    if not upgrade:
         return
 
-    current_xp = stats.get("xp", 0)
-    level = stats.get("level", 1)
-    coins = stats.get("coins", 0)
-    role = stats.get("role", "Unknown")
+    try:
+        text = (
+            f"🆙 <b>You've reached Level {new_level}!</b>\n\n"
+            f"🔓 New Power: <b>{upgrade['power']}</b>\n"
+            f"💰 Coins Earned: <b>{upgrade['coin_reward']}</b>\n"
+            f"⚔️ Role: <b>{role_type.title()}</b>\n"
+        )
 
-    new_xp = current_xp + amount
+        next_info = get_upgrade_info(role_type, new_level)
+        if next_info:
+            text += (
+                f"\n📈 Next Level: <b>{new_level + 1}</b>\n"
+                f"🔼 XP Needed: <code>{next_info['xp_required']}</code>\n"
+                f"🎁 Next Power: <b>{next_info['power']}</b>"
+            )
+        else:
+            text += "\n🌟 You have reached the final level. Max power unlocked!"
 
-    upgrade = get_upgrade_info(role, level)
-    required_xp = upgrade.get("xp_required") if upgrade else 9999
+        text += "\n\n💡 Use /mylevelup to check progress anytime."
 
-    # Level-up if enough XP
-    if new_xp >= required_xp and upgrade:
-        new_level = level + 1
-        new_power = upgrade["power"]
-        new_coins = coins + upgrade.get("coin_reward", 10)
-        carry_xp = new_xp - required_xp
+        await app.send_message(user_id, text, parse_mode=ParseMode.HTML)
 
-        await update_user_stats(user_id, {
-            "level": new_level,
-            "xp": carry_xp,
-            "coins": new_coins,
-            "power": new_power
-        })
-
-        return {
-            "level_up": True,
-            "new_level": new_level,
-            "new_power": new_power,
-            "new_coins": new_coins
-        }
-
-    else:
-        await update_user_stats(user_id, {"xp": new_xp})
-        return {
-            "level_up": False,
-            "xp": new_xp
-        }
+    except PeerIdInvalid:
+        print(f"Can't DM user {user_id} — they might not have started the bot.")
+        
