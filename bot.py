@@ -17,29 +17,20 @@ used_powers = set()
 votes = {}
 xp_data = {}
 
-FAIRIES = {
-    "Fairy Sparkle": "✨ Can deflect a villain's attack once.",
-    "Healing Fairy": "💖 Can secretly heal a player (once per game).",
-    "Vision Fairy": "🔮 Can discover a player’s role once.",
-    "Guardian Fairy": "🛡️ Can protect a player from being voted out.",
-    "Whispering Fairy": "📢 Can secretly send hint to a player."
-}
-
-VILLAINS = {
-    "Dark Lord": "💀 Can eliminate a player at night.",
-    "Shadow Queen": "🌘 Can block a Fairy’s power.",
-    "Nightmare": "😈 Can spread fear - players skip their turn.",
-    "Curse Bringer": "🕷️ Curses a Fairy, disabling their powers.",
-    "Soul Stealer": "🪦 Gains coins if Commoner is eliminated.",
-    "Chaos Maker": "🔥 Can confuse vote results for one round."
-}
-
-COMMONERS = {
-    "Villager": "🗳️ Can vote to eliminate villains and earn XP.",
-    "Helper": "🤝 Gets bonus XP when helping Fairies vote right.",
-    "Scout": "🧐 Can peek roles with 50% chance (1/game).",
-    "Believer": "🙏 Gains coins if Fairies win.",
-    "Trader": "💰 Trades coins for clues (not implemented)."
+role_powers = {
+    "Fairy Sparkle": "✨ Can deflect a villain's attack once.",
+    "Fairy Healer": "💖 Can heal and revive one fallen player.",
+    "Fairy Shield": "🛡️ Can protect a player from being attacked.",
+    "Fairy Vision": "🔮 Can reveal the role of another player.",
+    "Fairy Wind": "🍃 Can confuse a villain's action.",
+    
+    "Dark Slayer": "💀 Can instantly eliminate a player.",
+    "Shadow Mage": "🧿 Can block a player's power for 1 round.",
+    "Mind Thief": "🧠 Can steal another player’s power.",
+    "Fear Bringer": "😱 Can make 2 players unable to vote.",
+    "Chaos Master": "🔥 Can cause random chaos among powers.",
+    
+    "Commoner": "🙂 Can vote and help Fairies win. Earn XP by voting."
 }
 
 @bot.on_message(filters.command("start") & filters.group)
