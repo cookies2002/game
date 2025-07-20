@@ -1,195 +1,162 @@
-import os
-import random
-import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from config import BOT_TOKEN, API_ID, API_HASH, MONGO_URL
 from pymongo import MongoClient
+from random import choice, shuffle
+import asyncio
 
-# Load from environment or set your Mongo URI and bot token
-MONGO_URL = os.getenv("MONGO_URL", "mongodb+srv://xarwin2:xarwin2002@cluster0.qmetx2m.mongodb.net/?retryWrites=true&w=majority")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8098135944:AAF-zdTqjoYwW3fDdS7BY9zEX5BaiK235iY")
-API_ID = int(os.getenv("API_ID", 24977986))
-API_HASH = os.getenv("API_HASH", "abc6095228862c7502397c928bd7999e")
+bot = Client("fairy_vs_villain_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
+db = MongoClient(MONGO_URL).fairy_vs_villain
 
-bot = Client("fairy-vs-villain", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-client = MongoClient(MONGO_URL)
-db = client.fairy_vs_villain
-game_data = {}
+# Game data in memory
+games = {}
 
-# ========== Helper Functions ==========
-def get_level_up_cost(level):
+# Roles and powers
+FAIRIES = {
+    "Fairy Sparkle": "✨ Can deflect a villain's attack once.",
+    "Healing Fairy": "💖 Can secretly heal a player (once per game).",
+    "Vision Fairy": "🔮 Can discover a player’s role once.",
+    "Guardian Fairy": "🛡️ Can protect a player from being voted out.",
+    "Whispering Fairy": "📢 Can secretly send hint to a player."
+}
+
+VILLAINS = {
+    "Dark Lord": "💀 Can eliminate a player at night.",
+    "Shadow Queen": "🌘 Can block a Fairy’s power.",
+    "Nightmare": "😈 Can spread fear - players skip their turn.",
+    "Curse Bringer": "🕷️ Curses a Fairy, disabling their powers.",
+    "Soul Stealer": "🪦 Gains coins if Commoner is eliminated."
+}
+
+COMMONERS = {
+    "Villager": "🗳️ Can vote to eliminate villains and earn XP.",
+    "Helper": "🤝 Gets bonus XP when helping Fairies vote right.",
+    "Scout": "🧐 Can peek roles with 50% chance (1/game).",
+    "Believer": "🙏 Gains coins if Fairies win.",
+    "Trader": "💰 Trades coins for clues (not implemented)."
+}
+
+ALL_ROLES = list(FAIRIES.items()) + list(VILLAINS.items()) + list(COMMONERS.items())
+
+# XP/Coins system
+def get_level(xp):
+    if xp < 100: return 1
+    if xp < 250: return 2
+    if xp < 500: return 3
+    if xp < 1000: return 4
+    return 5
+
+def get_upgrade_cost(level):
     return level * 100
 
-def get_required_xp(level):
-    return level * 200
-
-async def assign_roles(chat_id):
-    players = game_data[chat_id]['players']
-    random.shuffle(players)
-    roles = ["Fairy", "Villain", "Commoner", "Fairy", "Villain"]
-    while len(roles) < len(players):
-        roles.append("Commoner")
-    random.shuffle(roles)
+# Game Functions
+async def assign_roles(group_id):
+    players = games[group_id]['players']
+    shuffle(players)
+    assigned = {}
+    roles_pool = list(FAIRIES.items()) + list(VILLAINS.items()) + list(COMMONERS.items())
+    shuffle(roles_pool)
+    
     for i, user_id in enumerate(players):
-        role = roles[i]
-        db.users.update_one({"_id": user_id}, {"$set": {"role": role, "alive": True}}, upsert=True)
-        user = await bot.get_users(user_id)
-        text = f"👤 You are a *{role}*\n"
-        if role == "Fairy":
-            text += "✨ You can detect and deflect Villains! Use /usepower wisely."
-        elif role == "Villain":
-            text += "💀 You can attack others! Use /usepower to eliminate."
-        else:
-            text += "🧑 You are a Commoner. Vote wisely and support Fairies!"
-        await bot.send_message(user_id, text)
+        if i < len(roles_pool):
+            role_name, power = roles_pool[i]
+            assigned[user_id] = {
+                'role': role_name,
+                'power': power,
+                'alive': True,
+                'used_power': False
+            }
+            try:
+                await bot.send_message(user_id, f"🧙‍♀️ Your Role: {role_name}\n\n✨ Power: {power}\nUse /usepower in the group to activate if applicable.")
+            except:
+                pass
 
-# ========== Commands ========== 
+    games[group_id]['roles'] = assigned
+
+async def announce_winner(group_id):
+    roles = games[group_id]['roles']
+    fairies_alive = [uid for uid, r in roles.items() if r['alive'] and r['role'] in FAIRIES]
+    villains_alive = [uid for uid, r in roles.items() if r['alive'] and r['role'] in VILLAINS]
+
+    if not fairies_alive:
+        await bot.send_message(group_id, "😈 Villains have won the game!")
+    elif not villains_alive:
+        await bot.send_message(group_id, "🧚‍♀️ Fairies and Commoners have defeated the villains!")
+
+# Commands
 
 @bot.on_message(filters.command("start") & filters.group)
-async def start_game(client, message: Message):
+async def start_game(client, message):
     chat_id = message.chat.id
-    if chat_id not in game_data:
-        game_data[chat_id] = {"players": [], "votes": {}, "started": False}
-        await message.reply("🎮 Game created! Players use /join to participate.")
-    else:
-        await message.reply("Game already created. Use /join to join or /reset to reset.")
+    if chat_id in games:
+        await message.reply("⚠️ Game already running. Use /reset to restart.")
+        return
+    games[chat_id] = {'players': [], 'roles': {}, 'votes': {}}
+    await message.reply("🎮 Game started! Players, type /join to participate.")
 
 @bot.on_message(filters.command("join") & filters.group)
-async def join_game(client, message: Message):
+async def join_game(client, message):
     chat_id = message.chat.id
-    user_id = message.from_user.id
-    if chat_id in game_data and user_id not in game_data[chat_id]['players']:
-        game_data[chat_id]['players'].append(user_id)
-        db.users.update_one({"_id": user_id}, {"$setOnInsert": {"xp": 0, "coins": 0, "level": 1}}, upsert=True)
-        await message.reply(f"✅ {message.from_user.mention} joined the game!")
-
-        if len(game_data[chat_id]['players']) >= 4 and not game_data[chat_id]['started']:
-            game_data[chat_id]['started'] = True
-            await message.reply("🚀 Game started! Assigning roles...")
-            await assign_roles(chat_id)
-    else:
-        await message.reply("You're already in the game or game not created yet.")
+    user = message.from_user
+    if chat_id not in games:
+        await message.reply("Start a game first using /start")
+        return
+    if user.id in games[chat_id]['players']:
+        await message.reply("✅ You're already in the game.")
+        return
+    games[chat_id]['players'].append(user.id)
+    await message.reply(f"🙋 {user.mention} joined the game!")
+    if len(games[chat_id]['players']) >= 4:
+        await assign_roles(chat_id)
+        await message.reply("🎲 Roles have been assigned via DM!")
 
 @bot.on_message(filters.command("leave") & filters.group)
-async def leave_game(client, message: Message):
+async def leave_game(client, message):
     chat_id = message.chat.id
     user_id = message.from_user.id
-    if chat_id in game_data and user_id in game_data[chat_id]['players']:
-        game_data[chat_id]['players'].remove(user_id)
-        await message.reply(f"🚪 {message.from_user.mention} left the game.")
+    if chat_id in games and user_id in games[chat_id]['players']:
+        games[chat_id]['players'].remove(user_id)
+        await message.reply("🚪 You left the game.")
 
 @bot.on_message(filters.command("usepower") & filters.group)
-async def use_power(client, message: Message):
+async def use_power(client, message):
     chat_id = message.chat.id
-    attacker_id = message.from_user.id
-    if len(message.command) < 2:
-        return await message.reply("Usage: /usepower @target")
-    try:
-        target_username = message.command[1].replace("@", "")
-        target = await bot.get_users(target_username)
-        target_id = target.id
-    except:
-        return await message.reply("Invalid target username.")
+    user_id = message.from_user.id
+    if chat_id not in games or user_id not in games[chat_id]['roles']:
+        return
+    role_info = games[chat_id]['roles'][user_id]
+    if role_info['used_power']:
+        await message.reply("⚠️ You've already used your power.")
+        return
 
-    attacker = db.users.find_one({"_id": attacker_id})
-    target_user = db.users.find_one({"_id": target_id})
-
-    if not attacker or not attacker.get("alive", True):
-        return await message.reply("You're not alive or in game.")
-
-    if attacker['role'] == "Villain":
-        db.users.update_one({"_id": target_id}, {"$set": {"alive": False}})
-        db.users.update_one({"_id": attacker_id}, {"$inc": {"xp": 50, "coins": 50}})
-        await bot.send_message(attacker_id, f"💥 You attacked @{target_username}!")
-        await message.reply(f"💀 @{target_username} was defeated! 🎯 Attacked by: @{message.from_user.username}")
-
-    elif attacker['role'] == "Fairy":
-        if target_user and target_user['role'] == "Villain":
-            await bot.send_message(attacker_id, f"🛡️ You successfully deflected a Villain: @{target_username}!")
-            await message.reply(f"✨ @{message.from_user.username} deflected @{target_username} (Villain)!")
-            db.users.update_one({"_id": attacker_id}, {"$inc": {"xp": 40, "coins": 40}})
-        else:
-            await bot.send_message(attacker_id, "❌ Your detection failed. That wasn't a Villain.")
-    else:
-        await bot.send_message(attacker_id, "🚫 Commoners don’t have powers!")
+    role_info['used_power'] = True
+    power_result = f"✅ {message.from_user.mention} used their power: {role_info['power']}"
+    await bot.send_message(user_id, f"🎯 You used your power: {role_info['power']}")
+    await message.reply(power_result)
 
 @bot.on_message(filters.command("vote") & filters.group)
-async def vote_player(client, message: Message):
+async def vote_player(client, message):
     chat_id = message.chat.id
-    voter_id = message.from_user.id
+    user = message.from_user
     if len(message.command) < 2:
-        return await message.reply("Usage: /vote @username")
-    try:
-        voted_username = message.command[1].replace("@", "")
-        voted_user = await bot.get_users(voted_username)
-        voted_id = voted_user.id
-    except:
-        return await message.reply("Invalid username.")
-
-    game_data[chat_id]['votes'][voter_id] = voted_id
-    db.users.update_one({"_id": voter_id}, {"$inc": {"xp": 10, "coins": 5}})
-    await message.reply(f"🗳️ {message.from_user.mention} voted @{voted_username}!")
-
-@bot.on_message(filters.command("myxp"))
-async def show_my_xp(client, message: Message):
-    user_id = message.from_user.id
-    user = db.users.find_one({"_id": user_id})
-    if not user:
-        return await message.reply("No data found. Join a game first.")
-    await message.reply(f"📊 XP: {user['xp']}\n💎 Coins: {user['coins']}\n⭐ Level: {user['level']}")
-
-@bot.on_message(filters.command("upgrade"))
-async def upgrade_user(client, message: Message):
-    user_id = message.from_user.id
-    user = db.users.find_one({"_id": user_id})
-    cost = get_level_up_cost(user['level'])
-    if user['coins'] >= cost:
-        db.users.update_one({"_id": user_id}, {"$inc": {"level": 1, "coins": -cost}})
-        await message.reply(f"🎉 You leveled up to Level {user['level'] + 1}!")
-    else:
-        await message.reply(f"❌ Not enough coins. You need {cost} coins to level up.")
-
-@bot.on_message(filters.command("profile"))
-async def show_profile(client, message: Message):
-    user_id = message.from_user.id
-    user = db.users.find_one({"_id": user_id})
-    if not user:
-        return await message.reply("Join a game first.")
-    await message.reply(f"👤 Role: {user.get('role', 'Unknown')}\n📊 XP: {user['xp']}\n💎 Coins: {user['coins']}\n⭐ Level: {user['level']}")
+        await message.reply("Usage: /vote @username")
+        return
+    target_username = message.command[1].lstrip("@")
+    games[chat_id]['votes'][user.id] = target_username
+    await message.reply(f"🗳️ {user.mention} voted to eliminate @{target_username}")
 
 @bot.on_message(filters.command("reset") & filters.group)
-async def reset_game(client, message: Message):
-    if message.from_user.id == message.chat.id:
-        return await message.reply("Only admins can reset the game.")
-    chat_id = message.chat.id
-    game_data.pop(chat_id, None)
-    await message.reply("🔄 Game reset.")
-
-@bot.on_message(filters.command("leaderboard"))
-async def show_global_leaderboard(client, message: Message):
-    top = list(db.users.find().sort("xp", -1).limit(5))
-    text = "🌍 Global Leaderboard:\n"
-    for i, user in enumerate(top, 1):
-        text += f"{i}. ID: {user['_id']} - XP: {user['xp']}\n"
-    await message.reply(text)
-
-@bot.on_message(filters.command("myleaderboard") & filters.group)
-async def show_group_leaderboard(client, message: Message):
-    chat_id = message.chat.id
-    if chat_id not in game_data:
-        return await message.reply("No game data.")
-    group_players = game_data[chat_id]['players']
-    users = list(db.users.find({"_id": {"$in": group_players}}).sort("xp", -1))
-    text = "🏆 Group Leaderboard:\n"
-    for i, user in enumerate(users, 1):
-        text += f"{i}. ID: {user['_id']} - XP: {user['xp']}\n"
-    await message.reply(text)
+async def reset_game(client, message):
+    if not message.from_user or not message.from_user.id:
+        return
+    if message.from_user.id != message.chat.id:
+        games.pop(message.chat.id, None)
+        await message.reply("🔄 Game reset.")
 
 @bot.on_message(filters.command("help"))
-async def show_help(client, message: Message):
-    await message.reply(
-        """📜 *How to Play Fairy vs Villain*
-
+async def help_menu(client, message):
+    await message.reply("""
+📜 *Fairy vs Villain Bot Commands:*
 /start - Start a new game
 /join - Join the game
 /leave - Leave the game
@@ -202,12 +169,46 @@ async def show_help(client, message: Message):
 /leaderboard - View global top players 🌍
 /myleaderboard - View this group's top players 🏆
 
-Fairies: Detect and deflect Villains
-Villains: Eliminate others secretly
-Commoners: Vote and earn XP to help fair team!
-        """,
-        parse_mode="markdown"
-    )
+🎮 _Min 4 players required. Roles sent via DM. Commoners help Fairies. Fairies defeat Villains!_
+    """, quote=True)
 
-print("✅ Bot is running...")
+@bot.on_message(filters.command("myxp"))
+async def show_xp(client, message):
+    user = db.users.find_one({"_id": message.from_user.id}) or {"xp": 0, "coins": 0}
+    level = get_level(user['xp'])
+    await message.reply(f"📊 XP: {user['xp']}\n💎 Coins: {user['coins']}\n🎖️ Level: {level}")
+
+@bot.on_message(filters.command("upgrade"))
+async def upgrade_user(client, message):
+    user = db.users.find_one({"_id": message.from_user.id}) or {"xp": 0, "coins": 0}
+    level = get_level(user['xp'])
+    cost = get_upgrade_cost(level)
+    if user['coins'] >= cost:
+        db.users.update_one({"_id": message.from_user.id}, {"$inc": {"xp": 50, "coins": -cost}}, upsert=True)
+        await message.reply(f"🔼 You upgraded to Level {get_level(user['xp']+50)}!")
+    else:
+        await message.reply("💰 Not enough coins to upgrade.")
+
+@bot.on_message(filters.command("profile"))
+async def profile(client, message):
+    user = db.users.find_one({"_id": message.from_user.id}) or {"xp": 0, "coins": 0}
+    await message.reply(f"👤 *{message.from_user.first_name}*\nXP: {user['xp']}\nCoins: {user['coins']}\nLevel: {get_level(user['xp'])}")
+
+@bot.on_message(filters.command("leaderboard"))
+async def leaderboard(client, message):
+    top = db.users.find().sort("xp", -1).limit(5)
+    text = "🌍 *Global Leaderboard:*\n"
+    for i, u in enumerate(top, 1):
+        text += f"{i}. [User](tg://user?id={u['_id']}) - XP: {u['xp']}\n"
+    await message.reply(text)
+
+@bot.on_message(filters.command("myleaderboard") & filters.group)
+async def my_leaderboard(client, message):
+    group_id = str(message.chat.id)
+    top = db.group_stats.find({"group": group_id}).sort("xp", -1).limit(5)
+    text = "🏆 *Group Leaderboard:*\n"
+    for i, u in enumerate(top, 1):
+        text += f"{i}. [User](tg://user?id={u['user']}) - XP: {u['xp']}\n"
+    await message.reply(text)
+
 bot.run()
