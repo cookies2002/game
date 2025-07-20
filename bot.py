@@ -96,8 +96,46 @@ async def join_game(client, message: Message):
 # /usepower
 @bot.on_message(filters.command("usepower"))
 async def use_power(client, message: Message):
-    await message.reply("🤫 You secretly used your power! (Power effect not shown here)")
-    # Logic should be extended with cooldown, target, role behavior
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    if chat_id not in games:
+        return await message.reply("⚠️ No game in progress.")
+
+    player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
+    if not player:
+        return await message.reply("❌ You're not in the game.")
+    if not player["alive"]:
+        return await message.reply("💀 You are defeated and cannot use powers.")
+
+    role = player["role"]
+    role_type = player["type"]
+    target = None
+
+    if role == "Dark Lord":
+        targets = [p for p in games[chat_id]["players"] if p["id"] != user_id and p["alive"]]
+        if not targets:
+            return await message.reply("🎯 No valid target to attack.")
+        target = random.choice(targets)
+        target["alive"] = False
+        await message.reply(f"🔥 A mysterious force has eliminated {target['name']}!")
+        try:
+            await client.send_message(target["id"], "☠️ You were eliminated by a dark power.")
+        except:
+            pass
+
+    elif role == "Light Fairy":
+        villains = [p for p in games[chat_id]["players"] if p["type"] == "Villain" and p["id"] != user_id]
+        if villains:
+            revealed = random.choice(villains)
+            await client.send_message(user_id, f"🔍 One villain is: {revealed['name']}")
+        else:
+            await client.send_message(user_id, "✨ No villains found to reveal.")
+
+    else:
+        await client.send_message(user_id, f"🪄 You used your power: {powers[role]}\n(Effect not implemented yet.)")
+
+    await message.reply("🤫 You secretly used your power!")
 
 # /vote
 @bot.on_message(filters.command("vote"))
@@ -164,8 +202,8 @@ async def help_menu(client, message: Message):
         "/myleaderboard - View this group's top players\n"
         "/help - Show how to play, rules, roles and power info\n\n"
         "<b>📖 Rules:</b> Minimum 4 players, max 15. Fairies defeat Villains. Commoners help via votes.\n"
-        "Use powers strategically. XP and coins help you upgrade!"
-        , parse_mode="html")
+        "Use powers strategically. XP and coins help you upgrade!",
+        parse_mode="html")
 
 # /end
 @bot.on_message(filters.command("end"))
