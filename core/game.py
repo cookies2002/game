@@ -35,3 +35,32 @@ def randomize_roles(players):
     for i, user_id in enumerate(players):
         roles[user_id] = "hero" if i < mid else "villain"
     return roles
+
+# core/power_engine.py
+
+power_effects = {
+    "rasengan": lambda user, target: f"🔵 Rasengan used by {user} on {target}! Stunned.",
+    "amaterasu": lambda user, target: f"🔥 Amaterasu unleashed by {user} on {target}! Burning over time.",
+    "sharingan": lambda user, target: f"👁️ Sharingan reveals {target}'s role!",
+    "drunken_fist": lambda user, _: f"🍶 Rock Lee uses Drunken Fist! Votes x2 this round.",
+    "flying_raijin": lambda user, target: f"⚡ Minato swaps places with {target}, avoiding danger!",
+    "regeneration": lambda user, _: f"💊 Tsunade revives one hero from the dead!",
+    "infinite_tsukuyomi": lambda user, _: f"🌕 Madara blinds everyone! No voting next round.",
+    "tsukuyomi": lambda user, target: f"🧠 Itachi traps {target} in Tsukuyomi! Vote disabled.",
+    "curse_mark": lambda user, target: f"🐍 Orochimaru curses {target}, draining XP.",
+    "almighty_push": lambda user, _: f"🌀 Pain cancels all powers tonight!",
+    "chakra_drain": lambda user, target: f"💧 Kisame drains chakra from {target}, steals coins!",
+    "silent_kill": lambda user, target: f"🗡️ Zabuza silently kills {target}. No trace left."
+}
+
+async def apply_phase_effects(group_id: int, phase: str):
+    # Placeholder: Apply background sounds, memes, power triggers, etc.
+    print(f"[GAME] Applying {phase} effects in group {group_id}...")
+    # Logic will go here later to apply auto powers
+
+async def use_power(user_id: int, power: str, target_id: int = None):
+    effect = power_effects.get(power)
+    if effect:
+        return effect(user_id, target_id)
+    return "❌ Unknown power."
+    
