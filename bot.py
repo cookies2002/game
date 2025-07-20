@@ -257,26 +257,57 @@ async def local_leaderboard(client, message: Message):
 # /help
 @bot.on_message(filters.command("help"))
 async def help_menu(client, message: Message):
-    await message.reply(
-        "<b>🧚 How to Play Fairy vs Villain</b>\n\n"
-        "<b>📜 Commands:</b>\n"
-        "/startgame - Start a new game in the group\n"
-        "/join - Join the game lobby\n"
-        "/leave - Leave the lobby before game starts\n"
-        "/end - End or reset the current game\n"
-        "/usepower - Use your secret special power\n"
-        "/vote - Vote to eliminate a player\n"
-        "/upgrade - Upgrade your powers using XP and coins\n"
-        "/shop - Buy scrolls, shields, or power-ups\n"
-        "/myxp - Check your XP and coins\n"
-        "/profile - View your stats and role info\n"
-        "/stats - View game status, alive players, and actions\n"
-        "/leaderboard - View global leaderboard\n"
-        "/myleaderboard - View this group's top players\n"
-        "/help - Show how to play, rules, roles and power info\n\n"
-        "<b>📖 Rules:</b> Minimum 4 players, max 15. Fairies defeat Villains. Commoners help via votes.\n"
-        "Use powers strategically. XP and coins help you upgrade!",
-        parse_mode="html")
+    help_text = """
+<b>🧚 Welcome to Fairy vs Villain!</b>
+
+<b>🎲 How to Play:</b>
+- Players join the game lobby using <code>/join</code>.
+- When minimum 4 players have joined, roles are assigned randomly:
+  Fairies, Villains, and Commoners.
+- Fairies must identify and eliminate Villains.
+- Villains try to secretly eliminate Fairies and Commoners.
+- Commoners support Fairies by voting wisely.
+- Use your unique powers wisely with <code>/usepower</code>.
+- Vote to eliminate suspicious players with <code>/vote @username</code>.
+- Earn XP and coins by playing, using powers, and winning rounds.
+- Upgrade your powers using coins with <code>/upgrade</code> to gain advantage.
+
+<b>📜 Commands:</b>
+/startgame — Create a new game lobby in this group  
+/join — Join the current game lobby  
+/leave — Leave the lobby before game starts  
+/end — End the current game  
+/usepower — Use your secret special power  
+/vote — Vote to eliminate a player (example: /vote @username)  
+/upgrade — Upgrade your powers using XP and coins  
+/shop — View and buy items with coins  
+/myxp — Check your XP and coin balance  
+/profile — View your role, stats, and power info  
+/stats — See current game status and alive players  
+/leaderboard — View global top players  
+/myleaderboard — View this group's top players  
+/help — Show this help message
+
+<b>📖 Rules:</b>
+- Minimum 4 players, maximum 15 per game.  
+- Fairies win by eliminating all Villains.  
+- Villains win by outnumbering Fairies.  
+- Commoners help Fairies by voting carefully.  
+- Use powers carefully; some have cooldowns or limits.  
+- Voting majority eliminates a player each round.  
+- Dead players cannot vote or use powers.
+
+<b>💡 Tips:</b>
+- Always communicate and watch for suspicious behavior.  
+- Use <code>/usepower</code> privately to turn the tide.  
+- Save coins and XP to upgrade powers and items.  
+- Stay active and strategize with your team.
+
+Good luck, have fun, and may the best team win! 🧚‍♀️👹
+"""
+
+    await message.reply(help_text, parse_mode="html")
+
 
 # /end
 @bot.on_message(filters.command("end"))
