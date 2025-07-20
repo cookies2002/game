@@ -48,6 +48,31 @@ powers = {
 def get_alive_players(chat_id):
     return [p for p in games[chat_id]["players"] if p["alive"]]
 
+@bot.on_message(filters.command("start"))
+async def start_message(client, message: Message):
+    welcome_text = """
+✨ Welcome to <b>Fairy vs Villain</b> — The Ultimate Battle of Magic & Mystery! ✨
+
+🌿 Step into a world where enchanting Fairies and cunning Villains clash in a thrilling game of strategy, trust, and deception.
+
+🧚‍♀️ Join the fairy-tale adventure:
+- Gather your friends and form alliances.
+- Discover your secret role and unique powers.
+- Use your wits to survive and outsmart your foes.
+
+🔥 Whether you’re a guardian of light or a master of shadows, every decision counts.
+
+👑 Ready to test your skills?  
+Type <code>/startgame</code> to create a game lobby and let the battle begin!
+
+💡 Need help? Use <code>/help</code> anytime to learn the rules and master your powers.
+
+May the brightest light shine, and the darkest schemes unravel.  
+Good luck, brave player — your destiny awaits! 🌟
+"""
+    await message.reply(welcome_text, parse_mode="html")
+
+
 # /startgame
 @bot.on_message(filters.command("startgame"))
 async def start_game(client, message: Message):
