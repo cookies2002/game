@@ -158,34 +158,58 @@ async def vote_player(client, message: Message):
             p["username"] = p.get("name", "").replace("@", "").lower()
 
     # Find voter and target
-    voter = next((p for p in players if p["id"] == user.id and p["alive"]), None)
-    target = next((p for p in players if p.get("username", "").lower() == target_username and p["alive"]), None)
+    @bot.on_message(filters.command("vote") & filters.group)
+async def vote_handler(client, message):
+    voter_id = message.from_user.id
+    voter = next((p for p in players if p["id"] == voter_id and p["alive"]), None)
 
-    if not voter:
-        return await message.reply("🚫 You are not allowed to vote (dead or not in game).")
+    if not voter:
+        await message.reply("❌ You are not in the game or already eliminated.")
+        return
 
-    if not target:
-        return await message.reply("❌ Target not found or not alive.")
+    if len(message.command) < 2:
+        await message.reply("⚠️ Please specify a target. Example: /vote @username")
+        return
 
-    games[chat_id]["votes"][user.id] = target["id"]
-    await message.reply("🗳️ Vote registered!")
+    target_username = message.command[1].lstrip("@").lower()
 
-    # Tally votes
-    vote_counts = {}
-    for vote in games[chat_id]["votes"].values():
-        vote_counts[vote] = vote_counts.get(vote, 0) + 1
+    target = next(
+        (p for p in players if p["username"].lower() == target_username and p["alive"]),
+        None
+    )
 
-    max_votes = max(vote_counts.values(), default=0)
-    majority = len([p for p in players if p["alive"]]) // 2 + 1
+    if not target:
+        await message.reply("❌ Target not found or not alive.")
+        return
 
-    for pid, count in vote_counts.items():
-        if count >= majority:
-            eliminated = next((p for p in players if p["id"] == pid), None)
-            if eliminated:
-                eliminated["alive"] = False
-                await client.send_message(chat_id, f"⚔️ {eliminated['name']} was eliminated by vote!")
-                games[chat_id]["votes"] = {}  # Reset vote state
-            break
+    # Register vote
+    game_data.setdefault("votes", {}).setdefault(target["id"], []).append(voter_id)
+    await message.reply("🗳️ Vote registered!")
+
+    # Check if majority reached
+    alive_players = [p for p in players if p["alive"]]
+    total_votes = sum(len(v) for v in game_data["votes"].values())
+
+    if total_votes >= len(alive_players):
+        # Count votes
+        vote_counts = {}
+        for target_id, voter_list in game_data["votes"].items():
+            vote_counts[target_id] = vote_counts.get(target_id, 0) + len(voter_list)
+
+        # Get most voted player
+        most_voted = max(vote_counts.items(), key=lambda x: x[1])[0]
+        eliminated_player = next((p for p in players if p["id"] == most_voted), None)
+
+        if eliminated_player:
+            eliminated_player["alive"] = False
+            await client.send_message(
+                message.chat.id,
+                f"💀 {eliminated_player['name']} was eliminated by voting!"
+            )
+
+        # Clear votes for next round
+        game_data["votes"] = {}
+
 
             
 # /upgrade
