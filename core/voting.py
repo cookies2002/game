@@ -1,6 +1,8 @@
 # After a user casts a valid vote:
 from core.xp import add_xp
 
+await add_xp(user_id=voter.id, role_type="villain", amount=10)
+
 result = await add_xp(voter.id, 10)  # 🗳️ 10 XP for participating in vote
 
 if result.get("level_up"):
