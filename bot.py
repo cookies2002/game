@@ -1,155 +1,193 @@
-# bot.py - Fairy vs Villain Game Bot
-
-from pyrogram import Client, filters
-from pyrogram.types import Message
-from config import BOT_TOKEN, API_ID, API_HASH, MONGO_URL
-from pymongo import MongoClient
 import asyncio
 import random
+from datetime import datetime
+from pyrogram import Client, filters
+from pyrogram.types import Message
+from pymongo import MongoClient
 
-bot = Client("fairy_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-db = MongoClient(MONGO_URL).fairyvillain
+API_ID = 123456  # your api id
+API_HASH = "your_api_hash"
+BOT_TOKEN = "your_bot_token"
+MONGO_URL = "mongodb://localhost:27017"
 
-# In-memory game state
-games = {}
+bot = Client("fairy_vs_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+client = MongoClient(MONGO_URL)
+db = client["fairy_vs_villain"]
+users_collection = db["users"]
 
-# Roles and Powers
+# Game state
+players = {}
+alive_players = set()
+votes = {}
+game_started = False
+role_data = {}
+power_used = set()
+
 fairy_roles = [
-    ("Light Fairy", "Protects an ally from attacks for one night."),
-    ("Wind Fairy", "Can redirect an attack to another player."),
-    ("Time Fairy", "Skip one vote phase once per game."),
-    ("Healing Fairy", "Revives a fallen ally once."),
-    ("Truth Fairy", "Reveals if a player is Villain (1-time use).")
+    {"name": "Light Fairy", "power": "Reveal a Villain"},
+    {"name": "Shield Fairy", "power": "Protect a player from attack"},
+    {"name": "Heal Fairy", "power": "Revive a fallen Fairy"},
+    {"name": "Stun Fairy", "power": "Stun a Villain for 1 turn"},
+    {"name": "Wind Fairy", "power": "Deflect next attack"}
 ]
 
 villain_roles = [
-    ("Dark Lord", "Kills one player every night."),
-    ("Mind Stealer", "Silences one player during vote."),
-    ("Fear Mage", "Block 2 player votes for a round."),
-    ("Soul Eater", "Absorbs XP of defeated player."),
-    ("Shadow Walker", "Avoid detection by Truth Fairy.")
+    {"name": "Dark Lord", "power": "Kill any Fairy instantly"},
+    {"name": "Poisoner", "power": "Silence a player"},
+    {"name": "Mind Bender", "power": "Confuse voters"},
+    {"name": "Shadow", "power": "Hide from vote"},
+    {"name": "Thief", "power": "Steal coins from a Fairy"}
 ]
 
-commoner_msg = "🧑‍🌾 You're a Commoner!\nYou don’t have any powers.\nUse /vote to help eliminate the Villains."
+commoner_role = {"name": "Commoner", "power": "Vote to eliminate Villains"}
 
-# Start command
+# /start - Start a new game or get welcome instructions
 @bot.on_message(filters.command("start"))
-async def start_game(client, message: Message):
-    await message.reply("👾 Welcome to *Fairy vs Villain*!\nUse /join to enter the game.\nMinimum 4 players required.\nGame starts 60 seconds after 4 players join.")
+async def start_game(client, message):
+    await message.reply("🌟 Welcome to *Fairy vs Villain*! Use /join to enter the game. Once 4+ join, game starts in 60 seconds! Use /help to learn commands.")
 
-# Join command
+# /join - Join the current game lobby
 @bot.on_message(filters.command("join"))
-async def join_game(client, message: Message):
-    chat_id = message.chat.id
+async def join_game(client, message):
     user = message.from_user
-    games.setdefault(chat_id, {"players": {}, "started": False, "roles": {}, "alive": set(), "votes": {}, "used_power": set()})
-    game = games[chat_id]
+    if game_started:
+        return await message.reply("❌ Game already started! Wait for the next round.")
+    players[user.id] = user
+    alive_players.add(user.id)
+    await message.reply(f"✅ {user.mention} joined the game!")
 
-    if game["started"]:
-        return await message.reply("🚫 Game already started!")
-
-    if user.id in game["players"]:
-        return await message.reply("✅ You already joined.")
-
-    game["players"][user.id] = user
-    await message.reply(f"🎮 {user.mention} joined the game!")
-
-    if len(game["players"]) == 4:
-        await message.reply("⏳ 60 seconds left! More can join...")
+    if len(players) == 4:
+        await message.reply("⏳ 60 seconds until game starts. Others can still /join.")
         await asyncio.sleep(60)
-        if not game["started"]:
-            await assign_roles(client, chat_id)
+        if len(players) >= 4:
+            await assign_roles(client, message.chat.id)
 
-# Assign roles randomly
+# /leave - Leave the game lobby
+@bot.on_message(filters.command("leave"))
+async def leave_game(client, message):
+    user_id = message.from_user.id
+    if user_id in players:
+        players.pop(user_id)
+        alive_players.discard(user_id)
+        await message.reply("👋 You left the game lobby.")
+    else:
+        await message.reply("❌ You are not in the game.")
+
 async def assign_roles(client, chat_id):
-    game = games[chat_id]
-    players = list(game["players"].keys())
-    random.shuffle(players)
-
-    roles = ["Fairy", "Fairy", "Villain", "Commoner"] + ["Commoner"] * (len(players) - 4)
+    global game_started
+    game_started = True
+    all_players = list(players.keys())
+    random.shuffle(all_players)
+    roles = (["Fairy"] * 2) + (["Villain"] * 1) + (["Commoner"] * (len(all_players) - 3))
     random.shuffle(roles)
 
-    for user_id, role in zip(players, roles):
-        user = game["players"][user_id]
-        game["roles"][user_id] = role
-        game["alive"].add(user_id)
-
+    for user_id, role in zip(all_players, roles):
         if role == "Fairy":
-            name, power = random.choice(fairy_roles)
-            db.users.update_one({"_id": user_id}, {"$set": {"role": name}}, upsert=True)
-            await client.send_message(user_id, f"🌟 You're a **Fairy**!\nRole: {name}\nPower: {power}\nUse /usepower during the game.")
+            role_info = random.choice(fairy_roles)
         elif role == "Villain":
-            name, power = random.choice(villain_roles)
-            db.users.update_one({"_id": user_id}, {"$set": {"role": name}}, upsert=True)
-            await client.send_message(user_id, f"😈 You're a **Villain**!\nRole: {name}\nPower: {power}\nUse /usepower to eliminate others.")
+            role_info = random.choice(villain_roles)
         else:
-            await client.send_message(user_id, commoner_msg)
+            role_info = commoner_role
+        role_data[user_id] = {"type": role, "name": role_info["name"], "power": role_info["power"]}
+        await client.send_message(user_id, f"🎭 You are *{role_info['name']}* ({role})\n✨ Power: {role_info['power']}\nUse /usepower in group to activate.")
 
-    game["started"] = True
-    await client.send_message(chat_id, "✅ Game Started! Use /vote or /usepower. Check /help for rules.")
+    await client.send_message(chat_id, "🎮 Game started! Roles assigned. Let the battle begin!")
 
-# Use Power
+# /usepower - Use your role’s special power (DM & Group alerts)
 @bot.on_message(filters.command("usepower"))
-async def use_power(client, message: Message):
-    chat_id = message.chat.id
+async def use_power(client, message):
     user_id = message.from_user.id
-    game = games.get(chat_id)
+    if user_id not in alive_players or user_id in power_used:
+        return await message.reply("❌ You can’t use your power now.")
+    role = role_data.get(user_id)
+    if not role:
+        return await message.reply("❌ You don’t have a role yet.")
 
-    if not game or not game["started"]:
-        return await message.reply("🚫 Game not active!")
+    power_used.add(user_id)
+    if role['type'] == "Villain":
+        target = random.choice([uid for uid in alive_players if uid != user_id])
+        alive_players.remove(target)
+        attacker = players[user_id]
+        victim = players[target]
+        await client.send_message(message.chat.id, f"💀 {victim.mention} was defeated! 🎯 Attacked by: {attacker.mention}")
+        await client.send_message(user_id, "✅ You used your power successfully!")
+    else:
+        await client.send_message(user_id, f"✨ You used your power: {role['power']} (effect applied secretly)")
 
-    if user_id not in game["alive"]:
-        return await message.reply("💀 You are eliminated!")
-
-    if user_id in game["used_power"]:
-        return await message.reply("🕒 You already used your power.")
-
-    if game["roles"][user_id] == "Commoner":
-        return await message.reply("❌ Commoners have no power!")
-
-    game["used_power"].add(user_id)
-    target = random.choice([uid for uid in game["alive"] if uid != user_id])
-    game["alive"].discard(target)
-    target_name = game["players"][target].mention
-    attacker = message.from_user.mention
-    await client.send_message(target, "💀 You were defeated by a special power!")
-    await client.send_message(chat_id, f"💥 {target_name} was defeated! 🎯 Attacked by: {attacker}")
-
-# Vote Command
+# /vote - Vote to eliminate a suspicious player 🗳️
 @bot.on_message(filters.command("vote"))
-async def vote_player(client, message: Message):
-    chat_id = message.chat.id
+async def vote_player(client, message):
+    user = message.from_user
+    parts = message.text.split()
+    if len(parts) != 2:
+        return await message.reply("❌ Usage: /vote @username")
+
+    try:
+        target_username = parts[1].lstrip("@")
+        target_user = next((u for u in players.values() if u.username == target_username), None)
+        if not target_user:
+            return await message.reply("❌ Player not found.")
+        votes[user.id] = target_user.id
+        await message.reply(f"🗳️ {user.mention} voted to eliminate {target_user.mention}!")
+        if len(votes) >= len(alive_players):
+            result = max(set(votes.values()), key=list(votes.values()).count)
+            if result in alive_players:
+                alive_players.remove(result)
+                await client.send_message(message.chat.id, f"💥 {players[result].mention} was eliminated by vote!")
+                votes.clear()
+    except:
+        await message.reply("❌ Voting failed.")
+
+# /myxp - Show your current XP and coins 📊
+@bot.on_message(filters.command("myxp"))
+async def my_xp(client, message):
+    user = users_collection.find_one({"_id": message.from_user.id}) or {}
+    xp = user.get("xp", 0)
+    coins = user.get("coins", 0)
+    await message.reply(f"📊 XP: {xp} | 💰 Coins: {coins}")
+
+# /profile - View your full game profile and stats
+@bot.on_message(filters.command("profile"))
+async def profile(client, message):
     user_id = message.from_user.id
-    game = games.get(chat_id)
+    user = users_collection.find_one({"_id": user_id}) or {}
+    xp = user.get("xp", 0)
+    coins = user.get("coins", 0)
+    level = user.get("level", 1)
+    await message.reply(f"👤 Profile\nLevel: {level}\nXP: {xp}\nCoins: {coins}")
 
-    if not game or not game["started"]:
-        return await message.reply("🚫 No game running!")
+# /upgrade - Upgrade your powers using XP and coins
+@bot.on_message(filters.command("upgrade"))
+async def upgrade(client, message):
+    user_id = message.from_user.id
+    user = users_collection.find_one({"_id": user_id}) or {}
+    xp = user.get("xp", 0)
+    coins = user.get("coins", 0)
+    if xp >= 100 and coins >= 50:
+        users_collection.update_one({"_id": user_id}, {"$inc": {"level": 1, "xp": -100, "coins": -50}}, upsert=True)
+        await message.reply("🎉 Power upgraded successfully!")
+    else:
+        await message.reply("❌ Not enough XP or coins to upgrade.")
 
-    if user_id not in game["alive"]:
-        return await message.reply("❌ You’re not alive!")
+# /reset - Admin only: Reset the current game ⚙️
+@bot.on_message(filters.command("reset"))
+async def reset_game(client, message):
+    if not message.from_user or not message.from_user.is_self and not message.from_user.id in [admin.id async for admin in bot.get_chat_members(message.chat.id) if admin.status == "creator"]:
+        return await message.reply("❌ Only group admin can reset.")
+    players.clear()
+    alive_players.clear()
+    votes.clear()
+    role_data.clear()
+    power_used.clear()
+    global game_started
+    game_started = False
+    await message.reply("🔄 Game has been reset.")
 
-    reply = message.reply_to_message
-    if not reply:
-        return await message.reply("👆 Reply to the player you want to vote!")
-
-    voted = reply.from_user.id
-    if voted not in game["alive"]:
-        return await message.reply("🙅 Player already out!")
-
-    game["votes"].setdefault(voted, []).append(user_id)
-    await message.reply(f"🗳️ Vote casted on {reply.from_user.mention}!")
-
-    # Eliminate if majority
-    if len(game["votes"][voted]) >= len(game["alive"]) // 2:
-        game["alive"].discard(voted)
-        await client.send_message(chat_id, f"❌ {reply.from_user.mention} has been eliminated by vote!")
-
-# Help command
+# /help - Get game instructions, rules, and tips 📜
 @bot.on_message(filters.command("help"))
-async def help_cmd(client, message: Message):
+async def help_command(client, message):
     await message.reply("""
-🎮 *Fairy vs Villain Game Bot*
-
+🎮 *Fairy vs Villain Commands*:
 /start - Start a new game or get welcome instructions
 /join - Join the current game lobby
 /leave - Leave the game lobby
@@ -165,5 +203,31 @@ async def help_cmd(client, message: Message):
 /myleaderboard - View this group’s leaderboard 🏆
 """)
 
+# /stats - See current game stats (alive/out/power used) 📈
+@bot.on_message(filters.command("stats"))
+async def stats(client, message):
+    alive = [players[uid].mention for uid in alive_players]
+    out = [players[uid].mention for uid in players if uid not in alive_players]
+    used = [players[uid].mention for uid in power_used]
+    await message.reply(f"📈 Stats:\nAlive: {', '.join(alive)}\nOut: {', '.join(out)}\nPower Used: {', '.join(used)}")
+
+# /leaderboard - View global leaderboard 🌍
+@bot.on_message(filters.command("leaderboard"))
+async def leaderboard(client, message):
+    top = users_collection.find().sort("xp", -1).limit(5)
+    text = "🏆 Global Leaderboard:\n"
+    for i, u in enumerate(top, 1):
+        text += f"{i}. ID {u['_id']} - XP: {u.get('xp', 0)}\n"
+    await message.reply(text)
+
+# /myleaderboard - View this group’s leaderboard 🏆
+@bot.on_message(filters.command("myleaderboard"))
+async def group_leaderboard(client, message):
+    chat_id = str(message.chat.id)
+    group_users = users_collection.find({"group_id": chat_id}).sort("xp", -1).limit(5)
+    text = f"🏆 Leaderboard for {message.chat.title or 'This Group'}:\n"
+    for i, u in enumerate(group_users, 1):
+        text += f"{i}. ID {u['_id']} - XP: {u.get('xp', 0)}\n"
+    await message.reply(text)
+
 bot.run()
-    
