@@ -1,4 +1,7 @@
 from core.xp import add_xp
+# Example usage
+await add_xp(user_id=message.from_user.id, role_type="hero", amount=20)
+
 
 # After successful power usage:
 result = await add_xp(user_id, 20)  # 🎯 20 XP for using power
