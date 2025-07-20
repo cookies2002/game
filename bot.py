@@ -7,6 +7,8 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from config import MONGO_URL, BOT_TOKEN, API_ID, API_HASH
+
 
 # Load environment variables
 load_dotenv()
