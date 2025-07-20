@@ -154,76 +154,40 @@ async def use_power(client, message: Message):
     await message.reply("🤫 You secretly used your power!")
 
 # /vote
-@bot.on_message(filters.command("vote"))
-async def vote_player(client, message: Message):
-    chat_id = message.chat.id
-    user = message.from_user
-
-    if chat_id not in games:
-        return await message.reply("⚠️ No game in progress.")
-
-    if len(message.command) < 2:
-        return await message.reply("❌ Usage: /vote @username")
-
-    target_username = message.command[1].lstrip("@").lower()
-    players = games[chat_id]["players"]
-
-    # Ensure each player has a usable 'username' field
-    for p in players:
-        if "username" not in p:
-            p["username"] = p.get("name", "").replace("@", "").lower()
-
-    # Find voter and target
-    @bot.on_message(filters.command("vote") & filters.group)
+@Client.on_message(filters.command("vote"))
 async def vote_handler(client, message):
-    voter_id = message.from_user.id
-    voter = next((p for p in players if p["id"] == voter_id and p["alive"]), None)
-
-    if not voter:
-        await message.reply("❌ You are not in the game or already eliminated.")
+    chat_id = message.chat.id
+    voter = message.from_user
+    args = message.text.split()
+    if len(args) < 2:
+        await message.reply("Usage: /vote @username")
         return
 
-    if len(message.command) < 2:
-        await message.reply("⚠️ Please specify a target. Example: /vote @username")
+    target_username = args[1].lstrip('@').lower()
+    if chat_id not in players or voter.id not in [p["id"] for p in players[chat_id]]:
+        await message.reply("❌ You're not part of this game.")
         return
 
-    target_username = message.command[1].lstrip("@").lower()
+    target = None
+    for p in players[chat_id]:
+        username = p.get("username", "").lower() if p.get("username") else p["name"].lower()
+        if username == target_username and p["alive"]:
+            target = p
+            break
 
-    target = next(
-    (p for p in players if p.get("username", "").lower() == target_username and p["alive"]),
-    None
-)
     if not target:
         await message.reply("❌ Target not found or not alive.")
         return
 
-    # Register vote
-    game_data.setdefault("votes", {}).setdefault(target["id"], []).append(voter_id)
-    await message.reply("🗳️ Vote registered!")
+    if chat_id not in votes:
+        votes[chat_id] = {}
+    if voter.id in votes[chat_id]:
+        await message.reply("❌ You've already voted!")
+        return
 
-    # Check if majority reached
-    alive_players = [p for p in players if p["alive"]]
-    total_votes = sum(len(v) for v in game_data["votes"].values())
+    votes[chat_id][voter.id] = target["id"]
+    await message.reply(f"✅ Your vote against @{target_username} has been recorded!")
 
-    if total_votes >= len(alive_players):
-        # Count votes
-        vote_counts = {}
-        for target_id, voter_list in game_data["votes"].items():
-            vote_counts[target_id] = vote_counts.get(target_id, 0) + len(voter_list)
-
-        # Get most voted player
-        most_voted = max(vote_counts.items(), key=lambda x: x[1])[0]
-        eliminated_player = next((p for p in players if p["id"] == most_voted), None)
-
-        if eliminated_player:
-            eliminated_player["alive"] = False
-            await client.send_message(
-                message.chat.id,
-                f"💀 {eliminated_player['name']} was eliminated by voting!"
-            )
-
-        # Clear votes for next round
-        game_data["votes"] = {}
             
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
