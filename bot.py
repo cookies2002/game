@@ -87,7 +87,7 @@ async def add_xp_and_coins(user_id, xp=10, coins=5):
 
 @bot.on_message(filters.command("start"))
 async def start_command(client, message: Message):
-    await message.reply("✨ Welcome to Fairy vs Villain Game! Use /join to enter the game. Minimum 4 players needed.")
+    await message.reply("\u2728 Welcome to Fairy vs Villain Game! Use /join to enter the game. Minimum 4 players needed.")
 
 @bot.on_message(filters.command("join"))
 async def join_game(client, message: Message):
@@ -116,7 +116,7 @@ async def start_game(client, chat_id):
         team, char_name, char_data = role
         game_data[user.id] = {"team": team, "character": char_name, "power": char_data["power"], "alive": True}
 
-        power_info = f"🪄 Power: {char_data['power']}\n📖 {char_data['description']}" if char_data['power'] else "No special power. Support by voting."
+        power_info = f"�� Power: {char_data['power']}\n📖 {char_data['description']}" if char_data['power'] else "No special power. Support by voting."
         await send_dm(client, user.id, f"🎭 You are a **{char_name}** ({team.upper()})\n{power_info}\nUse /usepower @target in this group to activate (if available).")
         await update_user(user.id, {"team": team, "character": char_name})
 
@@ -169,7 +169,7 @@ async def global_leaderboard(client, message: Message):
 @bot.on_message(filters.command("help"))
 async def help_menu(client, message: Message):
     await message.reply(
-        "🧚‍♀️ **Fairy vs Villain Bot Help**\n"
+        "📚 **Fairy vs Villain Bot Help**\n"
         "\n📜 **Game Rules:**"
         "\n- Min 4 players required."
         "\n- Roles: Fairy, Villain, Commoner."
