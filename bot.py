@@ -281,13 +281,13 @@ async def local_leaderboard(client, message: Message):
 # /help
 @bot.on_message(filters.command("help"))
 async def help_menu(client, message: Message):
-    help_text = """
+    help_text = r"""
 <b>🧚 Welcome to Fairy vs Villain!</b>
 
 <b>🎲 How to Play:</b>
 - Players join the game lobby using <code>/join</code>.
 - When minimum 4 players have joined, roles are assigned randomly:
-  Fairies, Villains, and Commoners.
+  Fairies, Villains, and Commoners.
 - Fairies must identify and eliminate Villains.
 - Villains try to secretly eliminate Fairies and Commoners.
 - Commoners support Fairies by voting wisely.
@@ -329,8 +329,8 @@ async def help_menu(client, message: Message):
 
 Good luck, have fun, and may the best team win! 🧚‍♀️👹
 """
+    await message.reply_text(help_text, parse_mode="html")
 
-    await message.reply(help_text, parse_mode="html")
 
 
 # /end
