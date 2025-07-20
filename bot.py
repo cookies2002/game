@@ -5,10 +5,10 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 from pymongo import MongoClient
 
-API_ID = 123456  # your api id
-API_HASH = "your_api_hash"
-BOT_TOKEN = "your_bot_token"
-MONGO_URL = "mongodb://localhost:27017"
+API_ID = 24977986  # your api id
+API_HASH = "abc6095228862c7502397c928bd7999e"
+BOT_TOKEN = "8098135944:AAF-zdTqjoYwW3fDdS7BY9zEX5BaiK235iY"
+MONGO_URL = "mongodb+srv://xarwin2:xarwin2002@cluster0.qmetx2m.mongodb.net/?retryWrites=true&w=majority"
 
 bot = Client("fairy_vs_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 client = MongoClient(MONGO_URL)
