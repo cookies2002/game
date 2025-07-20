@@ -8,19 +8,23 @@ async def show_my_xp(client: Client, message: Message):
     user = await get_user_by_id(user_id)
 
     if not user:
-        await message.reply("❌ You're not registered yet.")
+        await message.reply("❌ You haven't joined the game yet.")
         return
 
+    name = user.get("name", message.from_user.first_name)
     level = user.get("level", 1)
     xp = user.get("xp", 0)
     coins = user.get("coins", 0)
-    role = user.get("role", "Unknown").capitalize()
+    role = user.get("role", "Unknown").title()
+    team = user.get("team", "Hero").title()
 
-    await message.reply(
-        f"📊 **Your Stats**\n"
-        f"🧙 Role: {role}\n"
-        f"🔼 Level: {level}\n"
+    msg = (
+        f"📊 **Your Stats, {name}**\n\n"
+        f"🎭 Role: {role} ({team})\n"
         f"⭐ XP: {xp}\n"
-        f"💰 Coins: {coins}"
+        f"🔼 Level: {level}\n"
+        f"💰 Coins: {coins}\n"
     )
-  
+
+    await message.reply(msg)
+    
