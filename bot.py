@@ -70,8 +70,7 @@ Type <code>/startgame</code> to create a game lobby and let the battle begin!
 May the brightest light shine, and the darkest schemes unravel.  
 Good luck, brave player — your destiny awaits! 🌟
 """
-    await message.reply(welcome_text, parse_mode="html")
-
+    await message.reply(welcome_text, parse_mode="HTML")
 
 # /startgame
 @bot.on_message(filters.command("startgame"))
