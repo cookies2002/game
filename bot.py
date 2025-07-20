@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 from config import MONGO_URL, BOT_TOKEN, API_ID, API_HASH
 
-
 # Load environment variables
 load_dotenv()
 API_ID = int(os.getenv("API_ID"))
@@ -58,7 +57,7 @@ def assign_roles(members):
     n_fairies = max(1, n // 3)
     n_villains = max(1, n // 3)
     n_commoners = n - n_fairies - n_villains
-    
+
     for i in range(n_fairies):
         name, data = fairies[i % len(fairies)]
         roles.append(("fairy", name, data))
@@ -67,7 +66,7 @@ def assign_roles(members):
         roles.append(("villain", name, data))
     for i in range(n_commoners):
         roles.append(("commoner", "Villager", COMMONER_ROLE))
-    
+
     random.shuffle(roles)
     return roles
 
@@ -107,28 +106,26 @@ async def join_game(client, message: Message):
     if len(active_games[chat_id]["players"]) >= MIN_PLAYERS:
         await start_game(client, chat_id)
 
-async def start_game(client, chat_id):
-    players = active_games[chat_id]["players"]
-    roles = assign_roles(players)
+@bot.on_message(filters.command("leave"))
+async def leave_game(client, message: Message):
+    chat_id = message.chat.id
+    user = message.from_user
 
-    game_data = {}
-    for user, role in zip(players, roles):
-        team, char_name, char_data = role
-        game_data[user.id] = {"team": team, "character": char_name, "power": char_data["power"], "alive": True}
+    if chat_id not in active_games:
+        return await message.reply("No active game to leave.")
 
-        power_info = f"�� Power: {char_data['power']}\n📖 {char_data['description']}" if char_data['power'] else "No special power. Support by voting."
-        await send_dm(client, user.id, f"🎭 You are a **{char_name}** ({team.upper()})\n{power_info}\nUse /usepower @target in this group to activate (if available).")
-        await update_user(user.id, {"team": team, "character": char_name})
+    if user not in active_games[chat_id]["players"]:
+        return await message.reply("You are not part of the current game.")
 
-    active_games[chat_id]["state"] = game_data
-    await client.send_message(chat_id, "🎮 Game started! Players received their roles in DM.")
+    active_games[chat_id]["players"].remove(user)
+    await message.reply(f"🚪 {user.mention} left the game.")
 
 @bot.on_message(filters.command("usepower"))
 async def use_power(client, message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
-    if chat_id not in active_games:
-        return await message.reply("❌ No game active.")
+    if chat_id not in active_games or "state" not in active_games[chat_id]:
+        return await message.reply("❌ No game active or game not started.")
 
     state = active_games[chat_id]["state"]
     if user_id not in state or not state[user_id]["alive"]:
@@ -186,6 +183,7 @@ async def help_menu(client, message: Message):
         "\n\n🎯 **Commands:**"
         "\n/start - Start game setup"
         "\n/join - Join game"
+        "\n/leave - Leave game"
         "\n/usepower (reply) - Use your power"
         "\n/myxp - View XP & coins"
         "\n/leaderboard - Global top players"
