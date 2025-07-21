@@ -6,6 +6,7 @@ from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineK
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pyrogram.enums import ParseMode
+from pyrogram.helpers import mention_html
 
 load_dotenv()
 
@@ -371,41 +372,31 @@ async def vote_player(client, message: Message):
 
             
 # Winner checking logic
-async def check_winner(client, message, game):
-    # Get all alive players
+async def check_game_end(client, chat_id):
+    game = games.get(chat_id)
+    if not game:
+        return
+
     alive_players = [p for p in game["players"].values() if p["alive"]]
+    if len(alive_players) == 1:
+        winner = alive_players[0]
+        role = winner["role"]
+        mention = mention_html(winner["id"], winner["name"])
 
-    # Split based on roles
-    fairies_alive = [p for p in alive_players if p["role"] in ["Fairy", "Commoner"]]
-    villains_alive = [p for p in alive_players if p["role"] == "Villain"]
+        if role in ["Fairy", "Commoner"]:
+            team = "👼 Fairy Team"
+            reason = "All Villains have been defeated!"
+        else:
+            team = "😈 Villain Team"
+            reason = "Fairies and Commoners were eliminated!"
 
-    # If no villains alive, Fairies + Commoners win
-    if not villains_alive:
-        winners = "\n".join([f"✅ @{p['username']} - {p['character']}" for p in fairies_alive])
         await client.send_message(
-            game["chat_id"],
-            f"🎉 <b>Fairies & Commoners Win!</b>\n"
-            f"All Villains have been eliminated! ✨\n\n"
-            f"👏 Survivors:\n{winners}",
-            parse_mode="html"
+            chat_id,
+            f"🏁 <b>Game Over!</b>\n\n🥇 Winner: {mention}\n🏆 Winning Team: <b>{team}</b>\n📣 {reason}",
+            parse_mode=ParseMode.HTML
         )
-        game["started"] = False
-        return True
 
-    # If no fairies or commoners alive, Villains win
-    if not fairies_alive:
-        winners = "\n".join([f"😈 @{p['username']} - {p['character']}" for p in villains_alive])
-        await client.send_message(
-            game["chat_id"],
-            f"💀 <b>Villains Win!</b>\n"
-            f"Darkness has consumed all Fairies & Commoners!\n\n"
-            f"😈 Survivors:\n{winners}",
-            parse_mode="html"
-        )
-        game["started"] = False
-        return True
-
-    return False
+        games.pop(chat_id, None)
 
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
