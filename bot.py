@@ -195,16 +195,11 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
 
         elif role == "Dream Fairy":
     if target_type == "Villain":
-        if group_id not in blocked_powers:
-            blocked_powers[group_id] = set()
-        blocked_powers[group_id].add(target["id"])
+        target["blocked"] = True
         result_msg = f"💤 You blocked {target['name']}'s power for one round!"
-        await client.send_message(
-            target["id"],
-            f"⚠️ A Fairy's dream magic blocked your power this round!"
-        )
+        await client.send_message(target["id"], f"⚠️ A Fairy's dream magic blocked your power this round!")
     else:
-        result_msg = f"😴 {target['name']} is not a villain. Nothing happened."
+        result_msg = f"😴 {target['name']} is not a Villain. Nothing happened."
 
         elif role == "Healing Fairy":
             if not target["alive"]:
