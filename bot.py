@@ -276,10 +276,7 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
             else:
                 result_msg = f"🔍 {target['name']} is not a villain."
 
-        elif role == "Dream Fairy":
-            if target_type == "Villain":
-                game.setdefault("blocked_powers", {}).setdefault(chat_id, set()).add(target["id"])
-                target["blocked"] = True
+
 @bot.on_callback_query(filters.regex(r"^usepower:(\S+):(\d+):(\d+)$"))
 async def handle_usepower_callback(client, callback_query: CallbackQuery):
     chat_id, user_id, target_id = map(int, callback_query.matches[0].groups())
@@ -287,8 +284,9 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
     if chat_id not in games:
         return await callback_query.answer("Game not found.", show_alert=True)
 
-    player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
-    target = next((p for p in games[chat_id]["players"] if p["id"] == target_id), None)
+    game = games[chat_id]
+    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    target = next((p for p in game["players"] if p["id"] == target_id), None)
     if not player or not target:
         return await callback_query.answer("Invalid players.", show_alert=True)
 
@@ -298,20 +296,24 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
     result_msg = ""
 
     try:
+        if target.get("burned"):
+            return await callback_query.answer("🔥 Target's power is burned this round!", show_alert=True)
+
         if role == "Light Fairy":
             if target_type == "Villain":
                 result_msg = f"🔍 One villain is: {target['name']}"
-                await client.send_message(target["id"], f"⚠️ A Light Fairy has discovered you are a Villain!")
+                await client.send_message(target["id"], "⚠️ A Light Fairy has discovered you are a Villain!")
             else:
                 result_msg = f"🔍 {target['name']} is not a villain."
 
         elif role == "Dream Fairy":
             if target_type == "Villain":
+                game.setdefault("blocked_powers", {}).setdefault(chat_id, set()).add(target["id"])
                 target["blocked"] = True
                 result_msg = f"💤 You blocked {target['name']}'s power for one round!"
-                await client.send_message(target["id"], f"⚠️ A Fairy's dream magic blocked your power this round!")
+                await client.send_message(target["id"], "⚠️ A Fairy's dream magic blocked your power this round!")
             else:
-                result_msg = f"😴 {target['name']} is not a villain. Nothing happened."
+                result_msg = f"😴 {target['name']} is not a Villain. Nothing happened."
 
         elif role == "Healing Fairy":
             if not target["alive"]:
@@ -394,13 +396,11 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
         else:
             result_msg = f"🪄 You used your power, but nothing happened."
 
+        # Send the result to the user in private
         await callback_query.message.edit_text(result_msg)
 
     except Exception as e:
         await callback_query.answer("❌ Error occurred. Try again.", show_alert=True)
-
-
-
 
 # /vote
 @bot.on_message(filters.command("vote"))
