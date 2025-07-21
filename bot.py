@@ -328,15 +328,16 @@ async def show_xp(client, message: Message):
 @bot.on_message(filters.command("profile"))
 async def view_profile(client, message: Message):
     await message.reply("🧝 Profile:\n- Role: Unknown\n- Type: Unknown\n- XP: 20\n- Coins: 5")
-
-# /stats
+    
+#/stats
 @bot.on_message(filters.command("stats"))
 async def show_stats(client, message: Message):
-    chat_id = message.chat.id
-    if chat_id not in games:
-        return await message.reply("⚠️ No game running.")
-    alive = get_alive_players(chat_id)
-    await message.reply(f"📊 Game Stats:\n- Alive: {len(alive)}\n- Phase: {games[chat_id]['phase']}")
+    chat_id = message.chat.id
+    if chat_id not in games:
+        return await message.reply("⚠️ No game running.")
+    alive = get_alive_players(chat_id)
+    phase = games[chat_id].get('phase', '❓ Unknown')
+    await message.reply(f"📊 Game Stats:\n- Alive: {len(alive)}\n- Phase: {phase}")
 
 # /leaderboard
 @bot.on_message(filters.command("leaderboard"))
