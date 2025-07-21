@@ -153,6 +153,8 @@ async def assign_roles_and_start(client, chat_id):
             )
         except:
             pass
+            games[chat_id]["roles_assigned"] = True
+            
 
 
 # ✅ 
