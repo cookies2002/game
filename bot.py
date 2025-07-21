@@ -218,8 +218,38 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
             else:
                 result_msg = f"{target['name']} is already defeated."
 
+                elif role == "Nightmare":
+            if target["alive"]:
+                target["feared"] = True  # Mark player to skip vote (you can check this flag later)
+                result_msg = f"🌙 You sent fear into {target['name']}. They will skip the next vote!"
+                await client.send_message(target["id"], "😨 You were struck by a Nightmare! You will skip the next vote.")
+            else:
+                result_msg = f"{target['name']} is already defeated."
+
+        elif role == "Soul Eater":
+            if not target["alive"]:
+                player["coins"] += 2
+                result_msg = f"💰 You stole 2 coins from {target['name']}!"
+                await client.send_message(target["id"], "🩸 The Soul Eater fed on you even in death.")
+            else:
+                result_msg = f"{target['name']} is still alive. You can only feed on defeated players."
+
+        elif role == "Shadow Master":
+            player["invisible"] = True  # Mark as invisible (implement logic in voting system)
+            result_msg = f"🕶️ You became invisible from votes for 1 day!"
+            await client.send_message(user_id, "👤 No one can vote you for 1 day!")
+
+        elif role == "Fire Demon":
+            if target["type"] == "Fairy":
+                target["burned"] = True  # Add logic later to skip Fairy's next power
+                result_msg = f"🔥 You burned {target['name']}'s power for 1 round!"
+                await client.send_message(target["id"], "🔥 Your power was burned by the Fire Demon!")
+            else:
+                result_msg = f"{target['name']} is not a Fairy. Power burn failed."
+
         else:
             result_msg = f"🪄 You used your power, but nothing happened."
+
 
         await callback_query.message.edit_text(result_msg)
 
@@ -242,49 +272,54 @@ async def vote_player(client, message: Message):
     if not voter:
         return await message.reply("❌ You are not in the game or already eliminated.")
 
+    if voter.get("feared"):
+        return await message.reply("😨 You are feared and cannot vote this round!")
+
     if len(message.command) < 2:
         return await message.reply("❌ Usage: /vote @username")
 
     target_username = message.command[1].lstrip("@").lower()
 
-    # Find target by username (fall back to name if username missing)
+    # Find target by username (ignore invisible players)
     target = None
     for p in players:
         username = p.get("username") or p["name"].lstrip("@")
-        if username.lower() == target_username and p["alive"]:
+        if (
+            username.lower() == target_username
+            and p["alive"]
+            and not p.get("invisible")
+        ):
             target = p
             break
 
     if not target:
-        return await message.reply("❌ Target not found or not alive.")
+        return await message.reply("❌ Target not found, not alive, or is invisible.")
 
-    # Check if voter already voted
     if voter_id in votes:
         return await message.reply("❌ You already voted this round.")
 
     # Register vote
     votes[voter_id] = target["id"]
-    games[chat_id]["votes"] = votes  # Save votes back
+    games[chat_id]["votes"] = votes
 
-    await message.reply(f"🗳️ Vote registered for {target['name']}!")
+    await message.reply(f"🗳️ Your vote for {target['name']} has been registered!")
 
     # Count votes per player
     vote_counts = {}
     for t_id in votes.values():
         vote_counts[t_id] = vote_counts.get(t_id, 0) + 1
 
-    # Calculate majority (more than half of alive players)
-    alive_count = sum(p["alive"] for p in players)
+    # Calculate majority
+    alive_count = sum(p["alive"] and not p.get("invisible") for p in players)
     majority = alive_count // 2 + 1
 
-    # Check if any player reached majority votes
     for pid, count in vote_counts.items():
         if count >= majority:
             eliminated = next((p for p in players if p["id"] == pid), None)
             if eliminated:
                 eliminated["alive"] = False
                 await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
-                games[chat_id]["votes"] = {}  # reset votes for next round
+                games[chat_id]["votes"] = {}  # Reset for next round
                 await check_winner(client, message, games[chat_id])
             break
 
