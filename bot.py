@@ -25,28 +25,30 @@ active_powers = {}  # Stores per game player power usage
 cooldowns = {}  # Cooldown to prevent spamming power
 
 
+# Roles and Powers
 roles = {
-    "Fairy": ["Moonlight Fairy", "Dream Healer", "Flame Fairy", "Fairy Queen", "Star Whisperer"],
-    "Villain": ["Soul Eater", "Dark Witch", "Nightmare", "Shadow", "Fear Master"],
-    "Commoner": ["Village Elder", "Ghost", "Cursed One", "Fairy Spy"]
+    "Fairy": ["Moonlight Fairy", "Dream Healer", "Flame Fairy", "Fairy Queen", "Star Whisperer"],
+    "Villain": ["Soul Eater", "Dark Witch", "Nightmare", "Shadow", "Fear Master"],
+    "Commoner": ["Village Elder", "Ghost", "Cursed One", "Fairy Spy"]
 }
 
 powers = {
-    "Moonlight Fairy": "Shields a player from attacks.",
-    "Soul Eater": "Blocks a player's power.",
-    "Dark Witch": "Burns a player, making them lose coins.",
-    "Dream Healer": "Saves a player from elimination.",
-    "Nightmare": "Weakens a player's defense.",
-    "Star Whisperer": "Grants a player double XP.",
-    "Shadow": "Blinds a player — misvote risk.",
-    "Flame Fairy": "Kills one Villain if correct.",
-    "Fairy Queen": "Blocks XP gain for a player.",
-    "Ghost": "Silences a player's vote.",
-    "Dark Fairy": "Reveals a player's team.",
-    "Fear Master": "Blocks a player's vote.",
-    "Fairy Spy": "Views target's coins.",
-    "Village Elder": "Vote counts x2 this round.",
-    "Cursed One": "If target dies, they lose XP.",
+    "Moonlight Fairy": "Shields one player for the night. Prevents any attack.",
+    "Dream Healer": "Heals one Fairy or Commoner if attacked.",
+    "Flame Fairy": "Burns a Villain. If not shielded, target is eliminated.",
+    "Fairy Queen": "Blocks a Villain's power for one round.",
+    "Star Whisperer": "Reveals if target is Villain (doesn’t say name).",
+
+    "Soul Eater": "Absorbs XP from a defeated player.",
+    "Dark Witch": "Silences a player for one round. They can’t vote or use power.",
+    "Nightmare": "Creates a fake illusion. Redirects one player’s action to another.",
+    "Shadow": "Blinds one player. Their vote won’t count.",
+    "Fear Master": "Blocks two players from voting for one round.",
+
+    "Village Elder": "Votes have double weight.",
+    "Ghost": "Can vote even after death (once).",
+    "Cursed One": "Curses a player — they lose XP next round.",
+    "Fairy Spy": "Learns if someone is Fairy or Villain."
 }
 
 
@@ -256,38 +258,145 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
         else:
             result = f"❌ {target['name']} was not a Villain. Power wasted."
 
+
+@Client.on_message(filters.command("usepower"))
+async def use_power(client: Client, message: Message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    if chat_id not in games:
+        return await message.reply("❌ No active game in this chat.")
+
+    player = games[chat_id]["players"].get(user_id)
+    if not player:
+        return await message.reply("❌ You are not part of the game.")
+
+    if not player["alive"]:
+        return await message.reply("☠️ You are out of the game.")
+
+    if player.get("used_power"):
+        return await message.reply("⏳ You have already used your power this round.")
+
+    if player.get("silenced"):
+        return await message.reply("🔇 You are silenced and cannot use your power this round.")
+
+    await message.reply("🤫 Check your DM to use your power!")
+
+    buttons = []
+    for target_id, target in games[chat_id]["players"].items():
+        if target_id == user_id or not target["alive"]:
+            continue
+        buttons.append([InlineKeyboardButton(
+            text=f"🎯 {target['name']} (@{target_id})",
+            callback_data=f"usepower:{chat_id}:{user_id}:{target_id}"
+        )])
+
+    try:
+        await client.send_message(
+            user_id,
+            f"🧝‍♀️ **Your Role:** {player['name']}\n💫 **Power:** {powers[player['name']]}\n\nChoose a target to use your power:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+    except:
+        await message.reply("❌ Unable to send you a DM. Please start the bot in private chat.")
+
+@Client.on_callback_query(filters.regex(r"^usepower:(\-?\d+):(\d+):(\d+)$"))
+async def handle_usepower_callback(client: Client, callback_query: CallbackQuery):
+    chat_id, user_id, target_id = map(int, callback_query.matches[0].groups())
+
+    if chat_id not in games:
+        return await callback_query.answer("Game not found.", show_alert=True)
+
+    game = games[chat_id]
+    players = game["players"]
+    user = players.get(user_id)
+    target = players.get(target_id)
+
+    if not user or not user["alive"]:
+        return await callback_query.answer("You are not eligible.", show_alert=True)
+
+    if user["used_power"]:
+        return await callback_query.answer("Power already used.", show_alert=True)
+
+    if not target or not target["alive"]:
+        return await callback_query.answer("Invalid target.", show_alert=True)
+
+    attacker_name = user["name"]
+    target_name = target["name"]
+    role = attacker_name
+
+    result_msg = ""
+    public_announce = False
+
+    # Power Logic
+    if role == "Flame Fairy":
+        if target.get("shielded"):
+            result_msg = f"🔥 Your fire was blocked by a shield!"
+            await client.send_message(target_id, f"🛡️ You were shielded from an attack!")
+        else:
+            target["alive"] = False
+            result_msg = f"🔥 You burned {target_name}!"
+            await client.send_message(target_id, f"💀 You were burned by a Flame Fairy!")
+            await client.send_message(chat_id, f"💀 @{target_id} was defeated! 🎯 Attacked by: {attacker_name}")
+            public_announce = True
+
     elif role == "Fairy Queen":
-        effects["xp_blocked"] = True
-        result = f"⛔ {target['name']}'s XP gain is blocked."
+        target["blocked"] = True
+        result_msg = f"🧚‍♀️ You blocked {target_name}'s power for 1 round."
+        await client.send_message(target_id, f"🚫 Your power was blocked by the Fairy Queen!")
 
-    elif role == "Ghost":
-        effects["silenced"] = True
-        result = f"🔇 {target['name']} won't be able to vote this round."
+    elif role == "Dream Healer":
+        target["shielded"] = True
+        result_msg = f"💖 You protected {target_name} from next attack."
+        await client.send_message(target_id, f"✨ You are healed and shielded by a Fairy.")
 
-    elif role == "Dark Fairy":
-        result = f"🕵️ {target['name']} is on the *{target['type']}* team."
-        await client.send_message(user_id, result, parse_mode=ParseMode.MARKDOWN)
+    elif role == "Star Whisperer":
+        identity = target["role"]
+        result_msg = f"🔭 {target_name} is a {identity}!"
+
+    elif role == "Soul Eater":
+        if not target["alive"]:
+            user["xp"] += 20
+            result_msg = f"☠️ You absorbed XP from {target_name}. +20 XP"
+        else:
+            result_msg = f"❌ Target is still alive. You can only absorb from the dead."
+
+    elif role == "Dark Witch":
+        target["silenced"] = True
+        result_msg = f"🪄 You silenced {target_name}. They can’t vote or use power."
+        await client.send_message(target_id, f"🔇 You are silenced by a Dark Witch!")
+
+    elif role == "Shadow":
+        target["blinded"] = True
+        result_msg = f"🌫️ You blinded {target_name}. Their vote won’t count."
+        await client.send_message(target_id, f"👁️ You are blinded by a Shadow!")
 
     elif role == "Fear Master":
-        effects["vote_blocked"] = True
-        result = f"⚠️ {target['name']}'s vote won't count."
+        target["blocked"] = True
+        result_msg = f"🧠 You blocked {target_name} from voting."
+        await client.send_message(target_id, f"🚫 Your vote is blocked by Fear Master!")
 
-    elif role == "Fairy Spy":
-        result = f"💰 {target['name']} has {target.get('coins', 0)} coins."
-
-    elif role == "Village Elder":
-        effects["vote_x2"] = True
-        result = f"📊 {target['name']}'s vote will count twice."
+    elif role == "Ghost":
+        result_msg = "👻 You will be allowed to vote once after death."
 
     elif role == "Cursed One":
-        effects["cursed"] = user_id
-        result = f"💀 If {target['name']} dies, they’ll lose XP."
+        target["xp"] = max(0, target["xp"] - 10)
+        result_msg = f"💀 You cursed {target_name}. They lost 10 XP."
+        await client.send_message(target_id, f"💢 You are cursed. -10 XP.")
+
+    elif role == "Fairy Spy":
+        alignment = target["role"]
+        result_msg = f"🕵️‍♀️ {target_name} is aligned with the {alignment}s."
 
     else:
-        result = f"❌ Your role power is not implemented yet."
+        result_msg = f"⚠️ Power logic not implemented for {role}."
 
-    await callback_query.answer("🎯 Power used!")
-    await client.send_message(user_id, f"🪄 Power result:\n{result}")
+    user["used_power"] = True
+    user["xp"] += 10
+    user["coins"] += 5
+
+    await client.send_message(user_id, f"✅ Power used on {target_name} successfully!\n\n{result_msg}\n+10 XP, +5 Coins")
+    await callback_query.answer("Power used.", show_alert=True)
 
 
 @bot.on_message(filters.command("vote"))
