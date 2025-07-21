@@ -147,121 +147,13 @@ async def assign_roles_and_start(client, chat_id):
 # ✅ Full working /usepower command + callback logic
 # Supports 15 roles and correct power logic, with DM notifications
 
-@bot.on_message(filters.command("usepower"))
-async def use_power_command(client: Client, message: Message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-
-    if chat_id not in games:
-        return await message.reply("❌ No game in this chat.")
-
-    if user_id not in games[chat_id]["players"]:
-        return await message.reply("❌ You're not in an active game.")
-
-    player = games[chat_id]["players"][user_id]
-
-    if not player.get("alive"):
-        return await message.reply("☠️ You're eliminated!")
-
-    await message.reply("🤫 Check your DM to use your power!")
-
-    role = player["role"]
-    role_type = player["type"]
-    all_players = games[chat_id]["players"]
-
-    target_players = [
-        (uid, p["name"])
-        for uid, p in all_players.items()
-        if p["alive"] and uid != user_id
-    ]
-
-    if not target_players:
-        return await client.send_message(user_id, "😶 No one to use your power on.")
-
-    buttons = [
-        [InlineKeyboardButton(text=name, callback_data=f"usepower:{chat_id}:{user_id}:{uid}")]
-        for uid, name in target_players
-    ]
-
-    await client.send_message(
-        user_id,
-        f"🎭 Role: {role}\n🧚 Type: {role_type}\n\n🪄 Select a player to use your power on:",
-        reply_markup=InlineKeyboardMarkup(buttons),
-    )
-
-
-@bot.on_callback_query(filters.regex(r"^usepower:(\d+):(\d+):(\d+)$"))
-async def handle_usepower_callback(client: Client, callback_query: CallbackQuery):
-    chat_id, user_id, target_id = map(int, callback_query.matches[0].groups())
-
-    if chat_id not in games:
-        return await callback_query.answer("Game not found.", show_alert=True)
-
-    game = games[chat_id]
-    players = game["players"]
-    player = players.get(user_id)
-    target = players.get(target_id)
-
-    if not player or not target:
-        return await callback_query.answer("Invalid player.", show_alert=True)
-
-    role = player["role"]
-    role_type = player["type"]
-    target_type = target["type"]
-
-    attacker_msg = ""
-
-    try:
-        if target.get("burned"):
-            return await callback_query.answer("🔥 Target's power burned!", show_alert=True)
-
-        # === Role logic starts ===
-        if role == "Light Fairy":
-            attacker_msg = f"🔍 {target['name']} is a Villain!" if target_type == "Villain" else f"🔍 {target['name']} is not a Villain."
-            if target_type == "Villain":
-                await client.send_message(target_id, "⚠️ Light Fairy discovered you!")
-
-        elif role == "Dream Fairy":
-            if target_type == "Villain":
-                target["blocked"] = True
-                attacker_msg = f"💤 You blocked {target['name']}'s power this round."
-                await client.send_message(target_id, "😴 Dream Fairy blocked your power this round.")
-            else:
-                attacker_msg = "😐 Not a Villain. Nothing happened."
-
-        elif role == "Healing Fairy":
-            if not target["alive"]:
-                target["alive"] = True
-                attacker_msg = f"🌟 You revived {target['name']}!"
-                await client.send_message(target_id, "✨ Healing Fairy revived you!")
-            else:
-                attacker_msg = "⚠️ Already alive."
-
-        elif role == "Shield Fairy":
-            target["shielded"] = True
-            attacker_msg = f"🛡️ You shielded {target['name']}!"
-            await client.send_message(target_id, "🛡️ You're protected this round.")
-
-        elif role == "Wind Fairy":
-            target["dodged"] = True
-            attacker_msg = f"💨 You protected {target['name']} from one attack."
-            await client.send_message(target_id, "💨 Wind Fairy protected you.")
-
-        elif role == "Dark Lord":
-            if not target.get("shielded") and target["alive"]:
-                target["alive"] = False
-                attacker_msg = f"🔥 You eliminated {target['name']}!"
-                await client.send_message(chat_id, f"💀 {target['name']} was eliminated by a dark force!")
-                await client.send_message(target_id, "☠️ Dark Lord defeated you!")
-            else:
-# --- /usepower command ---
 @bot.on_message(filters.command("usepower") & filters.group)
-async def use_power(client: Client, message: Message):
+async def use_power_handler(client, message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
 
     if chat_id not in games or not games[chat_id].get("started"):
-        return await message.reply("❌ No game is running.")
+        return await message.reply("❌ No active game in this group.")
 
     game = games[chat_id]
     player = game["players"].get(user_id)
@@ -269,74 +161,127 @@ async def use_power(client: Client, message: Message):
     if not player or not player["alive"]:
         return await message.reply("❌ You're not in an active game.")
 
-    if player.get("power_used"):
-        return await message.reply("❌ You've already used your power this round.")
-
-    await message.reply("🤫 Check your DM to use your power!")
-
     role = player["role"]
-    power = player["power"]
+    character = player["character"]
 
-    # Build buttons for other players
-    buttons = []
-    for pid, info in game["players"].items():
-        if pid != user_id and info["alive"]:
-            buttons.append([InlineKeyboardButton(f"⚡ {info['name']}", callback_data=f"usepower:{chat_id}:{user_id}:{pid}")])
+    if "power_used" in player and player["power_used"]:
+        return await message.reply("❌ You've already used your power this game.")
 
-    await client.send_message(
-        user_id,
-        f"🧙‍♂️ **Your Role:** {role}\n✨ **Power:** {power}\n\nSelect a player to use your power:",
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
+    # DM the player to choose a target
+    target_buttons = []
+    for pid, pdata in game["players"].items():
+        if pid != user_id and pdata["alive"]:
+            target_buttons.append([InlineKeyboardButton(f"{pdata['name']}", callback_data=f"usepower:{chat_id}:{user_id}:{pid}")])
 
-# --- Power logic on button click ---
-@bot.on_callback_query(filters.regex(r"^usepower:(-?\d+):(\d+):(\d+)$"))
-async def handle_usepower_callback(client: Client, callback_query: CallbackQuery):
+    if not target_buttons:
+        return await message.reply("❌ No valid targets to use power on.")
+
+    try:
+        await client.send_message(
+            user_id,
+            f"🧙 You are **{character}** with the power:\n`{powers.get(character, 'Unknown Power')}`\n\n🎯 Choose a target:",
+            reply_markup=InlineKeyboardMarkup(target_buttons),
+        )
+        await message.reply("✅ Check your DM to select a target.")
+    except Exception as e:
+        await message.reply("❌ Please start a private chat with me and try again.")
+
+@bot.on_callback_query(filters.regex(r"^usepower:(\S+):(\d+):(\d+)$"))
+async def handle_usepower_callback(client, callback_query: CallbackQuery):
     chat_id, user_id, target_id = map(int, callback_query.matches[0].groups())
 
     if chat_id not in games:
-        return await callback_query.answer("Game not found.", show_alert=True)
+        return await callback_query.answer("❌ Game not found.", show_alert=True)
 
     game = games[chat_id]
-    user = game["players"].get(user_id)
+    player = game["players"].get(user_id)
     target = game["players"].get(target_id)
 
-    if not user or not target or not user["alive"] or not target["alive"]:
-        return await callback_query.answer("Invalid target.", show_alert=True)
+    if not player or not player["alive"]:
+        return await callback_query.answer("❌ You're not alive.", show_alert=True)
+    if not target or not target["alive"]:
+        return await callback_query.answer("❌ Target is not alive.", show_alert=True)
+    if player.get("power_used"):
+        return await callback_query.answer("❌ Power already used.", show_alert=True)
 
-    if user.get("power_used"):
-        return await callback_query.answer("You already used your power.", show_alert=True)
+    role = player["role"]
+    character = player["character"]
+    target_name = target["name"]
 
-    role = user["role"]
-    power = user["power"]
-    user["power_used"] = True
+    result_msg = ""
+    public_announce = ""
 
-    # Power Logic 🔮
-    message_to_attacker = f"✅ You successfully used **{power}** on {target['name']}!"
-    message_to_target = f"⚠️ {user['name']} used **{power}** on you!"
-
-    if power == "Block Power":
-        target["power_blocked"] = True
-        await client.send_message(target_id, f"🚫 Your power is blocked this round by **{user['name']}**.")
-    elif power == "Reveal Role":
-        await client.send_message(user_id, f"👁️ {target['name']}'s role is: {target['role']}")
-        message_to_attacker = "🕵️ You revealed their role!"
-    elif power == "Kill":
+    # Power Logic
+    if character == "Dark Lord":
         target["alive"] = False
-        await client.send_message(target_id, "💀 You were defeated by a mysterious power!")
-        await client.send_message(chat_id, f"💥 {target['name']} was eliminated by **{role}**!")
+        public_announce = f"💀 {target_name} was eliminated by a dark force!"
+        result_msg = f"✅ You used **{character}**'s power to eliminate {target_name}!"
+    elif character == "Healing Fairy":
+        for pid, pdata in game["players"].items():
+            if not pdata["alive"] and pdata["role"] == "Fairy":
+                pdata["alive"] = True
+                result_msg = f"🌟 You revived {pdata['name']}!"
+                break
+        if not result_msg:
+            result_msg = "❌ No dead Fairy to revive."
+    elif character == "Light Fairy":
+        villain = next((p for p in game["players"].values() if p["role"] == "Villain" and p["alive"]), None)
+        if villain:
+            result_msg = f"🔍 Detected Villain: {villain['name']}"
+        else:
+            result_msg = "❌ No villains to reveal."
+    elif character == "Wind Fairy":
+        target["shielded"] = True
+        result_msg = f"🌪 You shielded {target_name} from the next attack!"
+    elif character == "Dream Fairy":
+        target["blocked"] = True
+        result_msg = f"🌀 You blocked {target_name}'s power for 1 round."
+    elif character == "Soul Eater":
+        coins = target.get("coins", 0)
+        stolen = min(3, coins)
+        player["coins"] += stolen
+        target["coins"] -= stolen
+        result_msg = f"🩸 You stole {stolen} coins from {target_name}!"
+    elif character == "Shadow Master":
+        player["invisible"] = True
+        result_msg = "🕶 You became invisible from votes for 1 day!"
+    elif character == "Nightmare":
+        target["skip_vote"] = True
+        result_msg = f"😱 {target_name} will skip the next vote."
+    elif character == "Fire Demon":
+        target["power_blocked"] = True
+        result_msg = f"🔥 {target_name}'s power is disabled for 1 round."
+    elif character == "Scout":
+        result_msg = f"🔎 {target_name} is a {target['role']}."
+    elif character == "Village Elder":
+        result_msg = "👴 Your vote will count double this round."
+        player["vote_multiplier"] = 2
+    elif character == "Young Mage":
+        player["deflect_chance"] = True
+        result_msg = "✨ You now have a small chance to deflect attacks."
+    elif character == "Wanderer":
+        player["xp"] += 5
+        result_msg = "🧭 You earned 5 bonus XP!"
+    elif character == "Blacksmith":
+        player["can_buy_shield_discount"] = True
+        result_msg = "🛡️ Your next shield will cost 1 coin less."
     else:
-        await client.send_message(user_id, "⚠️ Unknown power. Nothing happened.")
-        return await callback_query.answer("Power failed.", show_alert=True)
+        result_msg = "❌ Unknown power."
 
-    # Final DM to attacker
-    await client.send_message(user_id, message_to_attacker)
-    await callback_query.answer("Power used!")
+    player["power_used"] = True
 
-    # Optionally notify target
-    if power != "Reveal Role":
-        await client.send_message(target_id, message_to_target)
+    # Send DM to player
+    try:
+        await client.send_message(user_id, f"🧙 Power Used:\n{result_msg}")
+    except:
+        pass
 
+    # If public result
+    if public_announce:
+        await client.send_message(chat_id, public_announce)
+
+    await callback_query.answer("✅ Power used successfully.", show_alert=True)
+    await callback_query.message.delete()
 
 
 @bot.on_message(filters.command("vote"))
