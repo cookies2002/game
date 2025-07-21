@@ -366,7 +366,7 @@ async def vote_player(client, message: Message):
             
 # Winner checking logic
 async def check_winner(client, message, game):
-    alive_players = [p for p in game["players"].values() if p["alive"]]
+    alive_players = [p for p in game["players"].values() if p["alive"]]  # ← retype this manually
     fairies_alive = [p for p in alive_players if p["role"] in ["Fairy", "Commoner"]]
     villains_alive = [p for p in alive_players if p["role"] == "Villain"]
 
