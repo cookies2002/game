@@ -22,23 +22,48 @@ lobbies = {}
 games = {}
 blocked_powers = {}  # {group_id: set of user_ids who are blocked}
 
-ROLE_POWERS = {
+roles = {
+    "Fairy": [
+        "Moonlight Fairy",
+        "Dream Healer",
+        "Star Whisperer",
+        "Flame Fairy",
+        "Fairy Queen",
+        "Ghost",
+        "Dark Fairy",
+        "Fairy Spy"
+    ],
+    "Villain": [
+        "Soul Eater",
+        "Dark Witch",
+        "Nightmare",
+        "Shadow",
+        "Fear Master",
+        "Cursed One"
+    ],
+    "Commoner": [
+        "Village Elder"
+    ]
+}
+
+powers = {
     "Moonlight Fairy": "Shields a player from attacks.",
-    "Soul Eater": "Blocks a player's power.",
-    "Dark Witch": "Burns a player, making them lose coins.",
     "Dream Healer": "Saves a player from elimination.",
-    "Nightmare": "Weakens a player's defense.",
     "Star Whisperer": "Grants a player double XP.",
-    "Shadow": "Blinds a player — misvote risk.",
     "Flame Fairy": "Kills one Villain if correct.",
     "Fairy Queen": "Blocks XP gain for a player.",
     "Ghost": "Silences a player's vote.",
     "Dark Fairy": "Reveals a player's team.",
-    "Fear Master": "Blocks a player's vote.",
     "Fairy Spy": "Views target's coins.",
-    "Village Elder": "Vote counts x2 this round.",
-    "Cursed One": "If target dies, they lose XP."
+    "Soul Eater": "Blocks a player's power.",
+    "Dark Witch": "Burns a player, making them lose coins.",
+    "Nightmare": "Weakens a player's defense.",
+    "Shadow": "Blinds a player — misvote risk.",
+    "Fear Master": "Blocks a player's vote.",
+    "Cursed One": "If target dies, they lose XP.",
+    "Village Elder": "Vote counts x2 this round."
 }
+
 
 
 def get_alive_players(chat_id):
