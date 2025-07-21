@@ -77,13 +77,15 @@ async def join_game(client: Client, message: Message):
     if games[chat_id]["started"]:
         return await message.reply("🚫 Game already started! Wait for the next round.")
 
+    # Prevent duplicate join
     if any(p["id"] == user.id for p in games[chat_id]["players"]):
         return await message.reply("✅ You already joined the game.")
 
+    # Add player to game
     games[chat_id]["players"].append({
         "id": user.id,
         "name": user.first_name,
-        "username": user.username,
+        "username": user.username or f"id{user.id}",
         "alive": True,
         "role": None,
         "type": None,
@@ -92,9 +94,11 @@ async def join_game(client: Client, message: Message):
         "level": 1,
     })
 
-    await message.reply(f"🎮 {user.first_name} joined the game!")
+    current_count = len(games[chat_id]["players"])
+    await message.reply(f"🙋 {user.first_name} joined! ({current_count}/15)")
 
-    if len(games[chat_id]["players"]) >= 4 and not games[chat_id]["started"]:
+    # Trigger countdown if enough players and game not started
+    if current_count >= 4 and not games[chat_id]["started"]:
         await message.reply("⏳ 60 seconds until game auto-starts. Others can still /join!")
 
         async def countdown_start():
@@ -102,8 +106,14 @@ async def join_game(client: Client, message: Message):
             if not games[chat_id]["started"] and len(games[chat_id]["players"]) >= 4:
                 games[chat_id]["started"] = True
                 await assign_roles_and_start(client, chat_id)
+                await client.send_message(
+                    chat_id,
+                    "🎲 <b>Roles assigned! Check your DM for your role and power.</b>",
+                    parse_mode="html"
+                )
 
         asyncio.create_task(countdown_start())
+
 
 async def assign_roles_and_start(client, chat_id):
     players = games[chat_id]["players"]
