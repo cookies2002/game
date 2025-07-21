@@ -371,34 +371,34 @@ async def vote_player(client, message: Message):
 
             
 # Winner checking logic
-def mention_html(user_id, name):
-    return f'<a href="tg://user?id={user_id}">{name}</a>'
+async def check_game_end(client, message, game):
+    chat_id = message.chat.id
+    players = game["players"]
 
-async def check_game_end(client, chat_id):
-    game = games.get(chat_id)
-    if not game:
+    alive_players = [p for p in players.values() if p["alive"]]
+
+    villains_alive = [p for p in alive_players if p["role"] == "Villain"]
+    fairies_commoners_alive = [p for p in alive_players if p["role"] in ["Fairy", "Commoner"]]
+
+    # Villains win
+    if len(villains_alive) >= len(fairies_commoners_alive):
+        winner_names = [f'<a href="tg://user?id={p["id"]}">{p["name"]}</a>' for p in villains_alive]
+        await message.reply(
+            f"💀 Villains have taken over!\n\n🏆 <b>Villain Team Wins!</b>\n🎯 Survivors:\n" + "\n".join(winner_names),
+            parse_mode=ParseMode.HTML
+        )
+        games.pop(chat_id, None)
         return
 
-    alive_players = [p for p in game["players"].values() if p["alive"]]
-    if len(alive_players) == 1:
-        winner = alive_players[0]
-        role = winner["role"]
-        mention = mention_html(winner["id"], winner["name"])
-
-        if role in ["Fairy", "Commoner"]:
-            team = "👼 Fairy Team"
-            reason = "All Villains have been defeated!"
-        else:
-            team = "😈 Villain Team"
-            reason = "Fairies and Commoners were eliminated!"
-
-        await client.send_message(
-            chat_id,
-            f"🏁 <b>Game Over!</b>\n\n🥇 Winner: {mention}\n🏆 Winning Team: <b>{team}</b>\n📣 {reason}",
-            parse_mode="html"
+    # Fairies + Commoners win
+    if not any(p["role"] == "Villain" and p["alive"] for p in players.values()):
+        winner_names = [f'<a href="tg://user?id={p["id"]}">{p["name"]}</a>' for p in fairies_commoners_alive]
+        await message.reply(
+            f"🧚‍♀️ All Villains are defeated!\n\n🏆 <b>Fairy Team Wins!</b>\n🎯 Survivors:\n" + "\n".join(winner_names),
+            parse_mode=ParseMode.HTML
         )
-
         games.pop(chat_id, None)
+        return
 
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
