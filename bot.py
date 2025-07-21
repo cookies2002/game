@@ -145,34 +145,6 @@ async def assign_roles_and_start(client, chat_id):
             pass
 
 # /usepower handler
-@bot.on_message(filters.command("usepower"))
-async def use_power(client, message: Message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-
-    if chat_id not in games:
-        return await message.reply("⚠️ No game in progress.")
-
-    player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
-    if not player or not player["alive"]:
-        return await message.reply("❌ You're not in the game or you're defeated.")
-
-    buttons = []
-    for target in games[chat_id]["players"]:
-        if target["id"] != user_id and target["alive"]:
-            buttons.append([InlineKeyboardButton(target["name"], callback_data=f"usepower:{chat_id}:{user_id}:{target['id']}")])
-
-    try:
-        await client.send_message(
-            user_id,
-            f"🎭 You are a {player['type']} - {player['role']}\n\n🧙 Power: {powers.get(player['role'], 'Unknown Power')}\n\nSelect a player to use your power on:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-        await message.reply("🤫 Check your DM to use your power!")
-    except:
-        await message.reply("⚠️ Unable to DM you. Start the bot privately and try again.")
-
-
 # Handle /usepower callback
 @bot.on_callback_query(filters.regex(r"^usepower:(\S+):(\d+):(\d+)$"))
 async def handle_usepower_callback(client, callback_query: CallbackQuery):
@@ -217,6 +189,7 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
                 target["alive"] = True
                 result_msg = f"🌟 You revived {target['name']}!"
                 await client.send_message(target["id"], "✨ A Healing Fairy revived you!")
+                await check_game_end(client, callback_query.message, game)  # ✅ Check if Fairy team wins
             else:
                 result_msg = f"⚠️ {target['name']} is already alive."
 
@@ -237,6 +210,7 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
                     result_msg = f"🔥 You eliminated {target['name']}!"
                     await client.send_message(chat_id, f"💀 {target['name']} was eliminated by a dark force!")
                     await client.send_message(target["id"], "☠️ You were defeated by the Dark Lord.")
+                    await check_game_end(client, callback_query.message, game)  # ✅ Check if Villains win
                 else:
                     result_msg = f"🛡️ {target['name']} was shielded. Attack failed."
             else:
@@ -294,6 +268,9 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
             result_msg = f"🪄 You used your power, but nothing happened."
 
         await callback_query.message.edit_text(result_msg)
+
+        # ✅ One final safety call to check winner for all powers
+        await check_game_end(client, callback_query.message, game)
 
     except Exception as e:
         await callback_query.answer("❌ Error occurred. Try again.", show_alert=True)
@@ -365,12 +342,10 @@ async def vote_player(client, message: Message):
 
                 games[chat_id]["votes"] = {}  # Reset votes
 
-                # ✅ Call the winner check logic
-                await check_winner(client, message, games[chat_id])
+                # ✅ FIXED: Correct winner check logic
+                await check_game_end(client, message, games[chat_id])
             break
-
             
-# Winner checking logic
 async def check_game_end(client, message, game):
     chat_id = message.chat.id
     players = game["players"]
@@ -390,15 +365,16 @@ async def check_game_end(client, message, game):
         games.pop(chat_id, None)
         return
 
-    # Fairies + Commoners win
-    if not any(p["role"] == "Villain" and p["alive"] for p in players.values()):
+    # Fairies/Commoners win
+    if len(villains_alive) == 0:
         winner_names = [f'<a href="tg://user?id={p["id"]}">{p["name"]}</a>' for p in fairies_commoners_alive]
         await message.reply(
-            f"🧚‍♀️ All Villains are defeated!\n\n🏆 <b>Fairy Team Wins!</b>\n🎯 Survivors:\n" + "\n".join(winner_names),
+            f"🧚‍♀️ Villains have been defeated!\n\n🏆 <b>Fairy Team Wins!</b>\n🎉 Survivors:\n" + "\n".join(winner_names),
             parse_mode=ParseMode.HTML
         )
         games.pop(chat_id, None)
         return
+
 
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
