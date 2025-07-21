@@ -19,6 +19,7 @@ db = mongo.fairy_game
 
 lobbies = {}
 games = {}
+blocked_powers = {}  # {group_id: set of user_ids who are blocked}
 
 roles = {
     "Fairy": ["Wind Fairy", "Healing Fairy", "Light Fairy", "Shield Fairy", "Dream Fairy"],
@@ -193,12 +194,17 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
                 result_msg = f"🔍 {target['name']} is not a villain."
 
         elif role == "Dream Fairy":
-            if target_type == "Villain":
-                target["blocked"] = True
-                result_msg = f"💤 You blocked {target['name']}'s power for one round!"
-                await client.send_message(target["id"], f"⚠️ A Fairy's dream magic blocked your power this round!")
-            else:
-                result_msg = f"😴 {target['name']} is not a villain. Nothing happened."
+    if target_type == "Villain":
+        if group_id not in blocked_powers:
+            blocked_powers[group_id] = set()
+        blocked_powers[group_id].add(target["id"])
+        result_msg = f"💤 You blocked {target['name']}'s power for one round!"
+        await client.send_message(
+            target["id"],
+            f"⚠️ A Fairy's dream magic blocked your power this round!"
+        )
+    else:
+        result_msg = f"😴 {target['name']} is not a villain. Nothing happened."
 
         elif role == "Healing Fairy":
             if not target["alive"]:
@@ -231,12 +237,15 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
                 result_msg = f"{target['name']} is already defeated."
 
         elif role == "Nightmare":
-            if target["alive"]:
-                target["feared"] = True
-                result_msg = f"🌙 You sent fear into {target['name']}. They will skip the next vote!"
-                await client.send_message(target["id"], "😨 You were struck by a Nightmare! You will skip the next vote.")
-            else:
-                result_msg = f"{target['name']} is already defeated."
+    # Check if Nightmare's power is blocked
+    if user_id in blocked_powers.get(group_id, set()):
+        result_msg = "🚫 Your power was blocked this round and did not affect anyone."
+    elif target["alive"]:
+        target["feared"] = True
+        result_msg = f"🌙 You sent fear into {target['name']}. They will skip the next vote!"
+        await client.send_message(target["id"], "😨 You were struck by a Nightmare! You will skip the next vote.")
+    else:
+        result_msg = f"{target['name']} is already defeated."
 
         elif role == "Soul Eater":
             if not target["alive"]:
@@ -353,7 +362,8 @@ async def vote_player(client, message: Message):
                 games[chat_id]["votes"] = {}  # Reset for next round
                 await check_winner(client, message, games[chat_id])
             break
-
+            blocked_powers[group_id] = set()
+            
 # Winner checking logic
 async def check_winner(client, message, game):
     alive_players = [p for p in game["players"].values() if p["alive"]]
