@@ -187,6 +187,7 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
                 target["blocked"] = True
                 result_msg = f"💤 You blocked {target['name']}'s power for one round!"
                 await client.send_message(target["id"], f"⚠️ A Fairy's dream magic blocked your power this round!")
+                await check_winner(client, callback_query.message, games[chat_id])
             else:
                 result_msg = f"😴 {target['name']} is not a villain. Nothing happened."
 
@@ -274,6 +275,7 @@ async def vote_player(client, message: Message):
                 eliminated["alive"] = False
                 await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
                 games[chat_id]["votes"] = {}  # reset votes for next round
+                await check_winner(client, message, games[chat_id])
             break
 
 # Winner checking logic
@@ -307,7 +309,6 @@ async def check_winner(client, message, game):
         return True
 
     return False
-
 
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
