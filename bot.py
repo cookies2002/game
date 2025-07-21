@@ -200,7 +200,7 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
         await client.send_message(target["id"], f"⚠️ A Fairy's dream magic blocked your power this round!")
     else:
         result_msg = f"😴 {target['name']} is not a Villain. Nothing happened."
-
+        
         elif role == "Healing Fairy":
             if not target["alive"]:
                 target["alive"] = True
