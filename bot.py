@@ -276,6 +276,31 @@ async def vote_player(client, message: Message):
                 games[chat_id]["votes"] = {}  # reset votes for next round
             break
 
+# Winner checking logic
+async def check_winner(client, message, game):
+    alive_players = [p for p in game["players"] if p["alive"]]
+    fairies_alive = [p for p in alive_players if p["role"] in ["Fairy", "Commoner"]]
+    villains_alive = [p for p in alive_players if p["role"] == "Villain"]
+
+    if not villains_alive:
+        winners = "\n".join([f"✅ @{p['username']} - {p['character']}" for p in fairies_alive])
+        await client.send_message(
+            game["chat_id"],
+            f"🎉 **Fairies Win!** All Villains have been eliminated!\n\n**Survivors:**\n{winners}"
+        )
+        game["started"] = False
+        return True
+
+    if not fairies_alive:
+        winners = "\n".join([f"💀 @{p['username']} - {p['character']}" for p in villains_alive])
+        await client.send_message(
+            game["chat_id"],
+            f"💀 **Villains Win!** Darkness has consumed the land!\n\n**Survivors:**\n{winners}"
+        )
+        game["started"] = False
+        return True
+
+    return False
             
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
