@@ -82,7 +82,7 @@ async def join_game(client: Client, message: Message):
     if any(p["id"] == user.id for p in games[chat_id]["players"]):
         return await message.reply("✅ You already joined the game.")
 
-    # Add player to game
+    # Add player
     games[chat_id]["players"].append({
         "id": user.id,
         "name": user.first_name,
@@ -96,14 +96,16 @@ async def join_game(client: Client, message: Message):
     })
 
     current_count = len(games[chat_id]["players"])
-    await message.reply(f"🙋 {user.first_name} joined! ({current_count}/15)")
+    mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
+    await message.reply(f"🙋 {mention} joined! ({current_count}/15)", parse_mode="html")
 
-    # Trigger countdown if enough players and game not started
+    # Start countdown if 4+ players
     if current_count >= 4 and not games[chat_id]["started"]:
-        await message.reply("⏳ 60 seconds until game auto-starts. Others can still /join!")
+        countdown_msg = await message.reply("⏳ 60 seconds until game auto-starts. Others can still /join!")
 
         async def countdown_start():
             await asyncio.sleep(60)
+            await countdown_msg.delete()
             if not games[chat_id]["started"] and len(games[chat_id]["players"]) >= 4:
                 games[chat_id]["started"] = True
                 await assign_roles_and_start(client, chat_id)
@@ -295,7 +297,6 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
         await callback_query.answer("❌ Error occurred. Try again.", show_alert=True)
 
 
-# /vote
 @bot.on_message(filters.command("vote"))
 async def vote_player(client, message: Message):
     chat_id = message.chat.id
@@ -319,7 +320,7 @@ async def vote_player(client, message: Message):
 
     target_username = message.command[1].lstrip("@").lower()
 
-    # Find target by username (ignore invisible players)
+    # Find the target player by username
     target = None
     for p in players:
         username = p.get("username") or p["name"].lstrip("@")
@@ -337,38 +338,46 @@ async def vote_player(client, message: Message):
     if voter_id in votes:
         return await message.reply("❌ You already voted this round.")
 
-    # Register vote
+    # Register the vote
     votes[voter_id] = target["id"]
     games[chat_id]["votes"] = votes
 
     await message.reply(f"🗳️ Your vote for {target['name']} has been registered!")
 
-    # Count votes per player
+    # Tally the votes
     vote_counts = {}
     for t_id in votes.values():
         vote_counts[t_id] = vote_counts.get(t_id, 0) + 1
 
-    # Calculate majority
+    # Majority calculation
     alive_count = sum(p["alive"] and not p.get("invisible") for p in players)
     majority = alive_count // 2 + 1
 
+    # Check if someone has majority votes
     for pid, count in vote_counts.items():
         if count >= majority:
             eliminated = next((p for p in players if p["id"] == pid), None)
             if eliminated:
                 eliminated["alive"] = False
                 await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
-                games[chat_id]["votes"] = {}  # Reset for next round
+
+                games[chat_id]["votes"] = {}  # Reset votes
+
+                # ✅ Call the winner check logic
                 await check_winner(client, message, games[chat_id])
             break
-            blocked_powers[group_id] = set()
+
             
 # Winner checking logic
 async def check_winner(client, message, game):
+    # Get all alive players
     alive_players = [p for p in game["players"].values() if p["alive"]]
+
+    # Split based on roles
     fairies_alive = [p for p in alive_players if p["role"] in ["Fairy", "Commoner"]]
     villains_alive = [p for p in alive_players if p["role"] == "Villain"]
 
+    # If no villains alive, Fairies + Commoners win
     if not villains_alive:
         winners = "\n".join([f"✅ @{p['username']} - {p['character']}" for p in fairies_alive])
         await client.send_message(
@@ -381,8 +390,9 @@ async def check_winner(client, message, game):
         game["started"] = False
         return True
 
+    # If no fairies or commoners alive, Villains win
     if not fairies_alive:
-        winners = "\n".join([f"💀 @{p['username']} - {p['character']}" for p in villains_alive])
+        winners = "\n".join([f"😈 @{p['username']} - {p['character']}" for p in villains_alive])
         await client.send_message(
             game["chat_id"],
             f"💀 <b>Villains Win!</b>\n"
