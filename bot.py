@@ -5,6 +5,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from pyrogram.enums import ParseMode
 
 load_dotenv()
 
@@ -97,7 +98,7 @@ async def join_game(client: Client, message: Message):
 
     current_count = len(games[chat_id]["players"])
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
-    await message.reply(f"🙋 {mention} joined! ({current_count}/15)", parse_mode="html")
+    await message.reply(f"🙋 {mention} joined! ({current_count}/15)", parse_mode=ParseMode.HTML)
 
     # Start countdown if 4+ players
     if current_count >= 4 and not games[chat_id]["started"]:
@@ -112,7 +113,8 @@ async def join_game(client: Client, message: Message):
                 await client.send_message(
                     chat_id,
                     "🎲 <b>Roles assigned! Check your DM for your role and power.</b>",
-                    parse_mode="html"
+                    parse_mode=ParseMode.HTML
+
                 )
 
         asyncio.create_task(countdown_start())
