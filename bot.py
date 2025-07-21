@@ -140,7 +140,7 @@ async def assign_roles_and_start(client, chat_id):
         except:
             pass
 
-# /usepower
+# /usepower handler
 @bot.on_message(filters.command("usepower"))
 async def use_power(client, message: Message):
     chat_id = message.chat.id
@@ -168,115 +168,8 @@ async def use_power(client, message: Message):
     except:
         await message.reply("⚠️ Unable to DM you. Start the bot privately and try again.")
 
-@bot.on_callback_query(filters.regex(r"^usepower:(\S+):(\d+):(\d+)$"))
-async def handle_usepower_callback(client, callback_query: CallbackQuery):
-    chat_id, user_id, target_id = map(int, callback_query.matches[0].groups())
 
-    if chat_id not in games:
-        return await callback_query.answer("Game not found.", show_alert=True)
-
-    player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
-    target = next((p for p in games[chat_id]["players"] if p["id"] == target_id), None)
-    if not player or not target:
-        return await callback_query.answer("Invalid players.", show_alert=True)
-
-    role = player["role"]
-    role_type = player["type"]
-    target_type = target["type"]
-    result_msg = ""
-
-try: 
-    if role == "Light Fairy":
-        if target_type == "Villain":
-            result_msg = f"🔍 One villain is: {target['name']}"
-            await client.send_message(target["id"], f"⚠️ A Light Fairy has discovered you are a Villain!")
-        else:
-            result_msg = f"🔍 {target['name']} is not a villain."
-
-    elif role == "Dream Fairy":
-        if target_type == "Villain":
-            target["blocked"] = True
-            result_msg = f"💤 You blocked {target['name']}'s power for one round!"
-            await client.send_message(target["id"], f"⚠️ A Fairy's dream magic blocked your power this round!")
-        else:
-            result_msg = f"😴 {target['name']} is not a Villain. Nothing happened."
-
-    elif role == "Healing Fairy":
-        if not target["alive"]:
-            target["alive"] = True
-            result_msg = f"🌟 You revived {target['name']}!"
-            await client.send_message(target["id"], "✨ A Healing Fairy revived you!")
-        else:
-            result_msg = f"⚠️ {target['name']} is already alive."
-
-    elif role == "Shield Fairy":
-        target["shielded"] = True
-        result_msg = f"🛡️ You shielded {target['name']} from the next attack or vote."
-        await client.send_message(target["id"], "🛡️ You are shielded from the next danger!")
-
-    elif role == "Wind Fairy":
-        target["dodged"] = True
-        result_msg = f"💨 You blew away any attack on {target['name']} for one round!"
-        await client.send_message(target["id"], "💨 A Wind Fairy protected you from attacks this round!")
-
-    elif role == "Dark Lord":
-        if target["alive"]:
-            if not target.get("shielded"):
-                target["alive"] = False
-                result_msg = f"🔥 You eliminated {target['name']}!"
-                await client.send_message(chat_id, f"💀 {target['name']} was eliminated by a dark force!")
-                await client.send_message(target["id"], "☠️ You were defeated by the Dark Lord.")
-            else:
-                result_msg = f"🛡️ {target['name']} was shielded. Attack failed."
-        else:
-            result_msg = f"{target['name']} is already defeated."
-
-    elif role == "Nightmare":
-        if user_id in blocked_powers.get(group_id, set()):
-            result_msg = "🚫 Your power was blocked this round and did not affect anyone."
-        elif target["alive"]:
-            target["feared"] = True
-            result_msg = f"🌙 You sent fear into {target['name']}. They will skip the next vote!"
-            await client.send_message(target["id"], "😨 You were struck by a Nightmare! You will skip the next vote.")
-        else:
-            result_msg = f"{target['name']} is already defeated."
-
-    elif role == "Soul Eater":
-        if not target["alive"]:
-            player["coins"] = player.get("coins", 0) + 2
-            result_msg = f"💰 You stole 2 coins from {target['name']}!"
-            await client.send_message(target["id"], "🩸 The Soul Eater fed on you even in death.")
-
-@bot.on_callback_query(filters.regex(r"^usepower:(\S+):(\d+):(\d+)$"))
-async def handle_usepower_callback(client, callback_query: CallbackQuery):
-    chat_id, user_id, target_id = map(int, callback_query.matches[0].groups())
-
-    if chat_id not in games:
-        return await callback_query.answer("Game not found.", show_alert=True)
-
-    game = games[chat_id]
-    player = next((p for p in game["players"] if p["id"] == user_id), None)
-    target = next((p for p in game["players"] if p["id"] == target_id), None)
-    if not player or not target:
-        return await callback_query.answer("Invalid players.", show_alert=True)
-
-    role = player["role"]
-    role_type = player["type"]
-    target_type = target["type"]
-    result_msg = ""
-
-    try:
-        if target.get("burned"):
-            return await callback_query.answer("🔥 Target's power is burned this round!", show_alert=True)
-
-        if role == "Light Fairy":
-            if target_type == "Villain":
-                result_msg = f"🔍 One villain is: {target['name']}"
-                await client.send_message(target["id"], "⚠️ A Light Fairy has discovered you are a Villain!")
-            else:
-                result_msg = f"🔍 {target['name']} is not a villain."
-
-
+# Handle /usepower callback
 @bot.on_callback_query(filters.regex(r"^usepower:(\S+):(\d+):(\d+)$"))
 async def handle_usepower_callback(client, callback_query: CallbackQuery):
     chat_id, user_id, target_id = map(int, callback_query.matches[0].groups())
@@ -396,11 +289,11 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
         else:
             result_msg = f"🪄 You used your power, but nothing happened."
 
-        # Send the result to the user in private
         await callback_query.message.edit_text(result_msg)
 
     except Exception as e:
         await callback_query.answer("❌ Error occurred. Try again.", show_alert=True)
+
 
 # /vote
 @bot.on_message(filters.command("vote"))
