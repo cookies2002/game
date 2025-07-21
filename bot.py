@@ -185,7 +185,7 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
     target_type = target["type"]
     result_msg = ""
 
-    try:
+try: 
     if role == "Light Fairy":
         if target_type == "Villain":
             result_msg = f"🔍 One villain is: {target['name']}"
