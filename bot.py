@@ -152,17 +152,23 @@ async def use_power_command(client: Client, message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
 
-    if chat_id not in games or user_id not in games[chat_id]["players"]:
+    if chat_id not in games:
+        return await message.reply("❌ No game in this chat.")
+
+    if user_id not in games[chat_id]["players"]:
         return await message.reply("❌ You're not in an active game.")
 
     player = games[chat_id]["players"][user_id]
-    if not player["alive"]:
-        return await message.reply("❌ You're out of the game!")
+
+    if not player.get("alive"):
+        return await message.reply("☠️ You're eliminated!")
 
     await message.reply("🤫 Check your DM to use your power!")
 
     role = player["role"]
+    role_type = player["type"]
     all_players = games[chat_id]["players"]
+
     target_players = [
         (uid, p["name"])
         for uid, p in all_players.items()
@@ -170,7 +176,7 @@ async def use_power_command(client: Client, message: Message):
     ]
 
     if not target_players:
-        return await client.send_message(user_id, "No valid targets for your power.")
+        return await client.send_message(user_id, "😶 No one to use your power on.")
 
     buttons = [
         [InlineKeyboardButton(text=name, callback_data=f"usepower:{chat_id}:{user_id}:{uid}")]
@@ -179,7 +185,7 @@ async def use_power_command(client: Client, message: Message):
 
     await client.send_message(
         user_id,
-        f"🎭 You are a {player['type']} - {role}\n🧙 Power: {powers.get(role, 'Unknown')}\n\nSelect a player to use your power on:",
+        f"🎭 Role: {role}\n🧚 Type: {role_type}\n\n🪄 Select a player to use your power on:",
         reply_markup=InlineKeyboardMarkup(buttons),
     )
 
@@ -203,113 +209,106 @@ async def handle_usepower_callback(client: Client, callback_query: CallbackQuery
     role_type = player["type"]
     target_type = target["type"]
 
-    result_msg = ""
     attacker_msg = ""
 
     try:
         if target.get("burned"):
-            return await callback_query.answer("🔥 Target's power is burned this round!", show_alert=True)
+            return await callback_query.answer("🔥 Target's power burned!", show_alert=True)
 
+        # === Role logic starts ===
         if role == "Light Fairy":
+            attacker_msg = f"🔍 {target['name']} is a Villain!" if target_type == "Villain" else f"🔍 {target['name']} is not a Villain."
             if target_type == "Villain":
-                attacker_msg = f"🔍 {target['name']} is a Villain!"
-                await client.send_message(target_id, "⚠️ A Light Fairy discovered your identity!")
-            else:
-                attacker_msg = f"🔍 {target['name']} is not a Villain."
+                await client.send_message(target_id, "⚠️ Light Fairy discovered you!")
 
         elif role == "Dream Fairy":
             if target_type == "Villain":
                 target["blocked"] = True
-                attacker_msg = f"💤 You blocked {target['name']}'s power for this round."
-                await client.send_message(target_id, "😴 A Dream Fairy blocked your power this round!")
+                attacker_msg = f"💤 You blocked {target['name']}'s power this round."
+                await client.send_message(target_id, "😴 Dream Fairy blocked your power this round.")
             else:
-                attacker_msg = f"😐 {target['name']} is not a Villain. Nothing happened."
+                attacker_msg = "😐 Not a Villain. Nothing happened."
 
         elif role == "Healing Fairy":
             if not target["alive"]:
                 target["alive"] = True
                 attacker_msg = f"🌟 You revived {target['name']}!"
-                await client.send_message(target_id, "✨ A Healing Fairy revived you!")
+                await client.send_message(target_id, "✨ Healing Fairy revived you!")
             else:
-                attacker_msg = f"⚠️ {target['name']} is already alive."
+                attacker_msg = "⚠️ Already alive."
 
         elif role == "Shield Fairy":
             target["shielded"] = True
-            attacker_msg = f"🛡️ You shielded {target['name']} from the next danger."
-            await client.send_message(target_id, "🛡️ You are shielded from the next danger!")
+            attacker_msg = f"🛡️ You shielded {target['name']}!"
+            await client.send_message(target_id, "🛡️ You're protected this round.")
 
         elif role == "Wind Fairy":
             target["dodged"] = True
             attacker_msg = f"💨 You protected {target['name']} from one attack."
-            await client.send_message(target_id, "💨 A Wind Fairy protected you from an attack!")
+            await client.send_message(target_id, "💨 Wind Fairy protected you.")
 
         elif role == "Dark Lord":
-            if target["alive"]:
-                if not target.get("shielded"):
-                    target["alive"] = False
-                    attacker_msg = f"🔥 You eliminated {target['name']}!"
-                    await client.send_message(chat_id, f"💀 {target['name']} was eliminated by a dark force!")
-                    await client.send_message(target_id, "☠️ You were defeated by the Dark Lord!")
-                else:
-                    attacker_msg = f"🛡️ {target['name']} was shielded. Attack failed."
+            if not target.get("shielded") and target["alive"]:
+                target["alive"] = False
+                attacker_msg = f"🔥 You eliminated {target['name']}!"
+                await client.send_message(chat_id, f"💀 {target['name']} was eliminated by a dark force!")
+                await client.send_message(target_id, "☠️ Dark Lord defeated you!")
             else:
-                attacker_msg = f"⚰️ {target['name']} is already dead."
+                attacker_msg = "🛡️ Attack failed. Target was shielded or dead."
 
         elif role == "Nightmare":
             if target["alive"]:
                 target["feared"] = True
-                attacker_msg = f"🌙 You terrified {target['name']}, they will skip next vote."
-                await client.send_message(target_id, "😨 You were hit by a Nightmare! Skip next vote.")
+                attacker_msg = f"🌙 {target['name']} is feared. They skip next vote."
+                await client.send_message(target_id, "😨 Nightmare hit you. Skip next vote.")
 
         elif role == "Soul Eater":
             if not target["alive"]:
                 player["coins"] = player.get("coins", 0) + 2
-                attacker_msg = f"💰 You stole 2 coins from {target['name']}!"
-                await client.send_message(target_id, "🩸 The Soul Eater fed on your remains.")
+                attacker_msg = "💰 You fed on the dead. +2 coins!"
+                await client.send_message(target_id, "🩸 Soul Eater consumed your soul.")
             else:
-                attacker_msg = f"⚠️ {target['name']} is alive. No coins stolen."
+                attacker_msg = "⚠️ They're alive. You can't feed."
 
         elif role == "Shadow Master":
             player["invisible"] = True
-            attacker_msg = f"🕶️ You are now invisible to votes for 1 day."
+            attacker_msg = "🕶️ You're invisible to votes for 1 day."
 
         elif role == "Fire Demon":
             if target_type == "Fairy":
                 target["burned"] = True
-                attacker_msg = f"🔥 You burned {target['name']}'s power for 1 round."
-                await client.send_message(target_id, "🔥 A Fire Demon burned your power this round!")
+                attacker_msg = f"🔥 You burned {target['name']}'s power."
+                await client.send_message(target_id, "🔥 Fire Demon burned your power!")
             else:
-                attacker_msg = f"🔥 {target['name']} is not a Fairy. No effect."
+                attacker_msg = "🔥 They're not a Fairy. Burn failed."
 
         elif role == "Village Elder":
             player["vote_multiplier"] = 2
-            attacker_msg = f"👴 Your vote will count double this round."
+            attacker_msg = "👴 Vote power increased. It counts double."
 
         elif role == "Young Mage":
             player["deflect_chance"] = 0.2
-            attacker_msg = f"✨ You now have a 20% chance to deflect attacks."
+            attacker_msg = "🧙 You gained 20% chance to deflect attacks."
 
         elif role == "Wanderer":
             player["xp"] = player.get("xp", 0) + 2
-            attacker_msg = f"🚶 You gained extra XP this round."
+            attacker_msg = "🚶 You earned extra XP."
 
         elif role == "Scout":
-            alignment = target_type
-            attacker_msg = f"🔍 You discovered {target['name']} is a {alignment}."
+            attacker_msg = f"🔍 {target['name']} is a {target_type}."
 
         elif role == "Blacksmith":
             player["shield_discount"] = True
-            attacker_msg = f"🛠️ You now buy shields 1 coin cheaper."
+            attacker_msg = "🛠️ Shields are cheaper for you."
 
         else:
-            attacker_msg = "❓ Unknown power. Nothing happened."
+            attacker_msg = "❓ Power not defined."
 
         await callback_query.message.edit_text(attacker_msg)
         await check_game_end(client, callback_query.message, game)
 
     except Exception as e:
-        await callback_query.answer("❌ Error occurred. Try again.", show_alert=True)
-
+        await callback_query.answer("❌ Error occurred.", show_alert=True)
 
 
 @bot.on_message(filters.command("vote"))
