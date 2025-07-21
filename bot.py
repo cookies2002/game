@@ -365,36 +365,35 @@ async def vote_player(client, message: Message):
             
 # Winner checking logic
 async def check_winner(client, message, game):
-            alive_players = [p for p in game["players"].values() if p["alive"]]
+    alive_players = [p for p in game["players"].values() if p["alive"]]
+    fairies_alive = [p for p in alive_players if p["role"] in ["Fairy", "Commoner"]]
+    villains_alive = [p for p in alive_players if p["role"] == "Villain"]
 
-    fairies_alive = [p for p in alive_players if p["role"] in ["Fairy", "Commoner"]]
-    villains_alive = [p for p in alive_players if p["role"] == "Villain"]
+    if not villains_alive:
+        winners = "\n".join([f"✅ @{p['username']} - {p['character']}" for p in fairies_alive])
+        await client.send_message(
+            game["chat_id"],
+            f"🎉 <b>Fairies & Commoners Win!</b>\n"
+            f"All Villains have been eliminated! ✨\n\n"
+            f"👏 Survivors:\n{winners}",
+            parse_mode="html"
+        )
+        game["started"] = False
+        return True
 
-    if not villains_alive:
-        winners = "\n".join([f"✅ @{p['username']} - {p['character']}" for p in fairies_alive])
-        await client.send_message(
-            game["chat_id"],
-            f"🎉 <b>Fairies & Commoners Win!</b>\n"
-            f"All Villains have been eliminated! ✨\n\n"
-            f"👏 Survivors:\n{winners}",
-            parse_mode="html"
-        )
-        game["started"] = False
-        return True
+    if not fairies_alive:
+        winners = "\n".join([f"💀 @{p['username']} - {p['character']}" for p in villains_alive])
+        await client.send_message(
+            game["chat_id"],
+            f"💀 <b>Villains Win!</b>\n"
+            f"Darkness has consumed all Fairies & Commoners!\n\n"
+            f"😈 Survivors:\n{winners}",
+            parse_mode="html"
+        )
+        game["started"] = False
+        return True
 
-    if not fairies_alive:
-        winners = "\n".join([f"💀 @{p['username']} - {p['character']}" for p in villains_alive])
-        await client.send_message(
-            game["chat_id"],
-            f"💀 <b>Villains Win!</b>\n"
-            f"Darkness has consumed all Fairies & Commoners!\n\n"
-            f"😈 Survivors:\n{winners}",
-            parse_mode="html"
-        )
-        game["started"] = False
-        return True
-
-    return False
+    return False
 
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
