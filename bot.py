@@ -6,7 +6,6 @@ from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineK
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pyrogram.enums import ParseMode
-from pyrogram.helpers import mention_html
 
 load_dotenv()
 
@@ -372,6 +371,9 @@ async def vote_player(client, message: Message):
 
             
 # Winner checking logic
+def mention_html(user_id, name):
+    return f'<a href="tg://user?id={user_id}">{name}</a>'
+
 async def check_game_end(client, chat_id):
     game = games.get(chat_id)
     if not game:
@@ -393,7 +395,7 @@ async def check_game_end(client, chat_id):
         await client.send_message(
             chat_id,
             f"🏁 <b>Game Over!</b>\n\n🥇 Winner: {mention}\n🏆 Winning Team: <b>{team}</b>\n📣 {reason}",
-            parse_mode=ParseMode.HTML
+            parse_mode="html"
         )
 
         games.pop(chat_id, None)
