@@ -23,27 +23,9 @@ games = {}
 blocked_powers = {}  # {group_id: set of user_ids who are blocked}
 
 roles = {
-    "Fairy": [
-        "Moonlight Fairy",
-        "Dream Healer",
-        "Star Whisperer",
-        "Flame Fairy",
-        "Fairy Queen",
-        "Ghost",
-        "Dark Fairy",
-        "Fairy Spy"
-    ],
-    "Villain": [
-        "Soul Eater",
-        "Dark Witch",
-        "Nightmare",
-        "Shadow",
-        "Fear Master",
-        "Cursed One"
-    ],
-    "Commoner": [
-        "Village Elder"
-    ]
+    "Fairy": ["Moonlight Fairy", "Dream Healer", "Flame Fairy", "Fairy Queen", "Star Whisperer"],
+    "Villain": ["Soul Eater", "Dark Witch", "Nightmare", "Shadow", "Fear Master"],
+    "Commoner": ["Village Elder", "Ghost", "Cursed One", "Fairy Spy"]
 }
 
 powers = {
@@ -141,28 +123,31 @@ async def join_game(client: Client, message: Message):
 
 
 async def assign_roles_and_start(client, chat_id):
-    players = games[chat_id]["players"]
-    random.shuffle(players)
-    total = len(players)
-    fairy_count = total // 3
-    villain_count = total // 3
-    commoner_count = total - fairy_count - villain_count
+    players = games[chat_id]["players"]
+    random.shuffle(players)
+    total = len(players)
+    fairy_count = total // 3
+    villain_count = total // 3
+    commoner_count = total - fairy_count - villain_count
 
-    assignments = ([("Fairy", r) for r in random.sample(roles["Fairy"], fairy_count)] +
-                   [("Villain", r) for r in random.sample(roles["Villain"], villain_count)] +
-                   [("Commoner", r) for r in random.sample(roles["Commoner"], commoner_count)])
-    random.shuffle(assignments)
+    assignments = (
+        [("Fairy", r) for r in random.choices(roles["Fairy"], k=fairy_count)] +
+        [("Villain", r) for r in random.choices(roles["Villain"], k=villain_count)] +
+        [("Commoner", r) for r in random.choices(roles["Commoner"], k=commoner_count)]
+    )
+    random.shuffle(assignments)
 
-    for player, (rtype, rname) in zip(players, assignments):
-        player["type"] = rtype
-        player["role"] = rname
-        try:
-            await client.send_message(
-                player["id"],
-                f"🎭 You are a {rtype} - {rname}\n\n🧙 Power: {powers.get(rname, 'None')}"
-            )
-        except:
-            pass
+    for player, (rtype, rname) in zip(players, assignments):
+        player["type"] = rtype
+        player["role"] = rname
+        try:
+            await client.send_message(
+                player["id"],
+                f"🎭 You are a {rtype} - {rname}\n\n🧙 Power: {powers.get(rname, 'None')}"
+            )
+        except:
+            pass
+
 
 # ✅ Full working /usepower command + callback logic
 # Supports 15 roles and correct power logic, with DM notifications
