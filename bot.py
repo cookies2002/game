@@ -145,6 +145,43 @@ async def assign_roles_and_start(client, chat_id):
             pass
 
 # /usepower handler
+@bot.on_message(filters.command("usepower"))
+async def use_power_command(client: Client, message: Message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    if chat_id not in games or user_id not in games[chat_id]["players"]:
+        return await message.reply("❌ You're not in an active game.")
+
+    player = games[chat_id]["players"][user_id]
+    if not player["alive"]:
+        return await message.reply("❌ You're out of the game!")
+
+    await message.reply("🤫 Check your DM to use your power!")
+
+    # Get list of alive opponents
+    role = player["role"]
+    all_players = games[chat_id]["players"]
+    target_players = [
+        (uid, p["name"])
+        for uid, p in all_players.items()
+        if p["alive"] and uid != user_id and p["role"] != role
+    ]
+
+    if not target_players:
+        return await client.send_message(user_id, "No valid targets for your power.")
+
+    buttons = [
+        [InlineKeyboardButton(text=name, callback_data=f"usepower:{chat_id}:{user_id}:{target_id}")]
+        for target_id, name in target_players
+    ]
+
+    await client.send_message(
+        user_id,
+        "🎯 Choose a player to use your power on:",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+    
 # Handle /usepower callback
 @bot.on_callback_query(filters.regex(r"^usepower:(\S+):(\d+):(\d+)$"))
 async def handle_usepower_callback(client, callback_query: CallbackQuery):
