@@ -2,11 +2,10 @@ import os
 import asyncio
 import random
 from pyrogram import Client, filters
-from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, InputPeerUser
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pyrogram.enums import ParseMode
-from pyrogram.types import InputPeerUser
 
 load_dotenv()
 
