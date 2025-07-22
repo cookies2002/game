@@ -137,9 +137,9 @@ async def assign_roles_and_start(client, chat_id):
     commoner_count = total - fairy_count - villain_count
 
     assignments = (
-        [("Fairy", r) for r in random.choices(roles["Fairy"], k=fairy_count)] +
-        [("Villain", r) for r in random.choices(roles["Villain"], k=villain_count)] +
-        [("Commoner", r) for r in random.choices(roles["Commoner"], k=commoner_count)]
+        [("Fairy", r) for r in random.sample(roles["Fairy"], k=fairy_count)] +
+        [("Villain", r) for r in random.sample(roles["Villain"], k=villain_count)] +
+        [("Commoner", r) for r in random.sample(roles["Commoner"], k=commoner_count)]
     )
     random.shuffle(assignments)
 
@@ -153,11 +153,8 @@ async def assign_roles_and_start(client, chat_id):
             )
         except:
             pass
-            games[chat_id]["roles_assigned"] = True
 
-
-# Continuing from your existing code, we now add the `/usepower` command
-# and its callback button interaction logic
+    games[chat_id]["roles_assigned"] = True
 
 @bot.on_message(filters.command("usepower"))
 async def use_power_handler(client: Client, message: Message):
@@ -170,14 +167,11 @@ async def use_power_handler(client: Client, message: Message):
     player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
     if not player:
         return await message.reply("⚠️ You're not in this game.")
-
     if not player["alive"]:
-        return await message.reply("💀 Dead players can't use power.")
+        return await message.reply("💀 Dead players can't use powers.")
 
     try:
-        peer = InputPeerUser(user_id, 0)
         alive_players = [p for p in games[chat_id]["players"] if p["id"] != user_id and p["alive"]]
-        
         if not alive_players:
             return await client.send_message(user_id, "❌ No valid targets to use your power on.")
 
@@ -188,45 +182,70 @@ async def use_power_handler(client: Client, message: Message):
 
         await client.send_message(
             user_id,
-            f"🎭 You are a {player['type']} - {player['role']}\n\n🧙 Power: {powers.get(player['role'], 'None')}\n\nSelect a player to use your power on:",
+            f"🎭 You are a {player.get('type')} - {player.get('role')}\n\n🧙 Power: {powers.get(player.get('role'), 'Unknown Power')}\n\nSelect a player to use your power on:",
             reply_markup=keyboard
         )
 
         await message.reply("🤫 Check your DM to use your power!")
-    except Exception as e:
+    except Exception:
         await message.reply("❌ Could not DM you. Start a chat with me first.")
 
 
-@bot.on_callback_query(filters.regex("^usepower:(\\d+):(\\-?\\d+)$"))
+@bot.on_callback_query(filters.regex(r"^usepower:(\d+):(-?\d+)$"))
 async def power_button_handler(client: Client, callback: CallbackQuery):
     target_id, chat_id = map(int, callback.data.split(":")[1:])
     user_id = callback.from_user.id
+
+    if chat_id not in games:
+        return await callback.answer("Game not found.", show_alert=True)
+
     player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
     target = next((p for p in games[chat_id]["players"] if p["id"] == target_id), None)
 
-    if not player or not target or not player["alive"] or not target["alive"]:
-        return await callback.answer("Invalid target or you're not alive.", show_alert=True)
+    if not player or not target:
+        return await callback.answer("Invalid player or target.", show_alert=True)
+    if not player["alive"]:
+        return await callback.answer("You are dead.", show_alert=True)
+    if not target["alive"]:
+        return await callback.answer("Target already dead.", show_alert=True)
 
     role = player["role"]
     role_type = player["type"]
     power_text = ""
     public_announce = ""
 
+    # --- Actual power effects ---
     if role == "Flame Fairy":
         if target["type"] == "Villain":
             target["alive"] = False
-            power_text = f"✅ Power used successfully on @{target['username']}!\n🎯 Your Flame Fairy burned them to ashes!"
+            power_text = f"🔥 Success! @{target['username']} (Villain) was eliminated by your Flame!"
             public_announce = f"🔥 @{target['username']} was defeated by a Flame Fairy!"
+            try:
+                await client.send_message(target["id"], "⚡ A Flame Fairy burned you! You are eliminated!")
+            except:
+                pass
         else:
-            power_text = f"⚠️ @{target['username']} is not a Villain. Your Flame Fairy power failed."
+            power_text = f"⚠️ Fail! @{target['username']} is not a Villain. Your Flame fizzled."
+
     elif role == "Fairy Queen":
         blocked_powers.setdefault(chat_id, set()).add(target_id)
-        power_text = f"✅ You blocked @{target['username']}'s power this round."
+        power_text = f"👑 You blocked @{target['username']}'s power this round!"
+        try:
+            await client.send_message(target["id"], "⚠️ A Fairy Queen blocked your power this round!")
+        except:
+            pass
+
+    elif role == "Fairy Spy":
+        power_text = f"🕵️ Your target @{target['username']} is a {target['type']}."
+
     elif role == "Dark Witch":
         blocked_powers.setdefault(chat_id, set()).add(target_id)
-        power_text = f"🪄 You silenced @{target['username']}. They can't vote or use powers this round."
-    elif role == "Fairy Spy":
-        power_text = f"🕵️ Target @{target['username']} is a {target['type']}!"
+        power_text = f"🪄 You silenced @{target['username']} this round."
+        try:
+            await client.send_message(target["id"], "🔇 A Dark Witch silenced you this round!")
+        except:
+            pass
+
     else:
         power_text = f"✅ You used your power on @{target['username']}."
 
@@ -235,13 +254,6 @@ async def power_button_handler(client: Client, callback: CallbackQuery):
     if public_announce:
         await client.send_message(chat_id, public_announce)
 
-    if target["id"] != user_id:
-        try:
-            await client.send_message(
-                target["id"], f"⚡ A {role} just used their power on you!"
-            )
-        except:
-            pass
 
 
 @bot.on_message(filters.command("vote"))
