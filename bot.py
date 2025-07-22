@@ -23,6 +23,7 @@ games = {}
 blocked_powers = {}  # {group_id: set of user_ids who are blocked}
 active_powers = {}  # Stores per game player power usage
 cooldowns = {}  # Cooldown to prevent spamming power
+used_powers = {}
 
 
 # Roles and Powers
@@ -205,7 +206,6 @@ async def use_power_handler(client: Client, message: Message):
 @bot.on_callback_query(filters.regex(r"^usepower:(\d+):(-?\d+)$"))
 # Updated handle_usepower_callback with proper logic enforcement and DM alerts
 # Maintain state for used powers
-used_powers = {}
 
 async def handle_usepower_callback(client, callback_query: CallbackQuery):
     from_user = callback_query.from_user
