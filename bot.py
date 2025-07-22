@@ -58,8 +58,13 @@ def get_alive_players(chat_id):
     return [p for p in games[chat_id]["players"] if p["alive"]]
 
 @bot.on_message(filters.command("start"))
-async def start_message(client, message: Message):
-    await message.reply("Welcome to Fairy vs Villain! Use /startgame to begin.")
+async def start(client: Client, message: Message):
+    await message.reply(
+        "🌟 Welcome to Fairy vs Villain!\n"
+        "Join a group and type /join to start playing!\n\n"
+        "You’ll get secret powers and XP via DM during the game.\n"
+        "Make sure you're ready!",
+    )
 
 @bot.on_message(filters.command("startgame"))
 async def start_game(client, message: Message):
@@ -91,6 +96,12 @@ async def join_game(client: Client, message: Message):
     if any(p["id"] == user.id for p in games[chat_id]["players"]):
         return await message.reply("✅ You already joined the game.")
 
+    await message.reply(
+    "📩 To fully participate, please [START the bot in private chat](https://t.me/fairy_game_bot). "
+    "Otherwise you won't receive power instructions!",
+    disable_web_page_preview=True
+    )
+    
     # Add player
     games[chat_id]["players"].append({
         "id": user.id,
@@ -192,67 +203,107 @@ async def use_power_handler(client: Client, message: Message):
 
 
 @bot.on_callback_query(filters.regex(r"^usepower:(\d+):(-?\d+)$"))
-async def power_button_handler(client: Client, callback: CallbackQuery):
-    target_id, chat_id = map(int, callback.data.split(":")[1:])
-    user_id = callback.from_user.id
+async def handle_usepower_callback(client, callback_query: CallbackQuery):
+    from_user = callback_query.from_user
+    target_id, chat_id = map(int, callback_query.matches[0].groups())
+    user_id = from_user.id
 
-    if chat_id not in games:
-        return await callback.answer("Game not found.", show_alert=True)
+    if chat_id not in games or not games[chat_id].get("started"):
+        return await callback_query.answer("⚠️ Game not found or not started.", show_alert=True)
 
-    player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
-    target = next((p for p in games[chat_id]["players"] if p["id"] == target_id), None)
+    game = games[chat_id]
+    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    target = next((p for p in game["players"] if p["id"] == target_id), None)
 
     if not player or not target:
-        return await callback.answer("Invalid player or target.", show_alert=True)
+        return await callback_query.answer("❌ Invalid player or target.", show_alert=True)
     if not player["alive"]:
-        return await callback.answer("You are dead.", show_alert=True)
-    if not target["alive"]:
-        return await callback.answer("Target already dead.", show_alert=True)
+        return await callback_query.answer("💀 You are dead!", show_alert=True)
 
-    role = player["role"]
-    role_type = player["type"]
+    role = player.get("role")
     power_text = ""
-    public_announce = ""
+    group_announce = ""
 
-    # --- Actual power effects ---
-    if role == "Flame Fairy":
-        if target["type"] == "Villain":
-            target["alive"] = False
-            power_text = f"🔥 Success! @{target['username']} (Villain) was eliminated by your Flame!"
-            public_announce = f"🔥 @{target['username']} was defeated by a Flame Fairy!"
-            try:
-                await client.send_message(target["id"], "⚡ A Flame Fairy burned you! You are eliminated!")
-            except:
-                pass
+    # Fairy Powers
+    if role == "Moonlight Fairy":
+        target["shielded"] = True
+        power_text = f"🛡️ You shielded {target['name']} from any attack this round."
+
+    elif role == "Dream Healer":
+        target["healed"] = True
+        power_text = f"💊 You will heal {target['name']} if they are attacked."
+
+    elif role == "Flame Fairy":
+        if target.get("shielded"):
+            power_text = f"🛡️ {target['name']} was shielded. Attack failed."
         else:
-            power_text = f"⚠️ Fail! @{target['username']} is not a Villain. Your Flame fizzled."
+            target["alive"] = False
+            group_announce = f"💀 {target['name']} was defeated! 🎯 Attacked by: {player['name']}"
+            power_text = f"🔥 You burned {target['name']}."
 
     elif role == "Fairy Queen":
-        blocked_powers.setdefault(chat_id, set()).add(target_id)
-        power_text = f"👑 You blocked @{target['username']}'s power this round!"
-        try:
-            await client.send_message(target["id"], "⚠️ A Fairy Queen blocked your power this round!")
-        except:
-            pass
+        target["power_blocked"] = True
+        power_text = f"🚫 {target['name']}'s power is blocked this round."
 
-    elif role == "Fairy Spy":
-        power_text = f"🕵️ Your target @{target['username']} is a {target['type']}."
+    elif role == "Star Whisperer":
+        identity = "Villain" if target["type"] == "Villain" else "Not a Villain"
+        power_text = f"🔍 Result: {target['name']} is *{identity}*."
+
+    # Villain Powers
+    elif role == "Soul Eater":
+        target["xp_drained"] = True
+        power_text = f"☠️ If {target['name']} dies, you gain their XP."
 
     elif role == "Dark Witch":
-        blocked_powers.setdefault(chat_id, set()).add(target_id)
-        power_text = f"🪄 You silenced @{target['username']} this round."
-        try:
-            await client.send_message(target["id"], "🔇 A Dark Witch silenced you this round!")
-        except:
-            pass
+        target["silenced"] = True
+        power_text = f"🔇 {target['name']} is silenced for 1 round."
+
+    elif role == "Nightmare":
+        random_target = random.choice([p for p in game["players"] if p["alive"] and p["id"] != target_id])
+        target["redirect_to"] = random_target["id"]
+        power_text = f"🌫️ You redirected {target['name']}'s action to {random_target['name']}."
+
+    elif role == "Shadow":
+        target["blinded"] = True
+        power_text = f"🌑 {target['name']}'s vote won’t count this round."
+
+    elif role == "Fear Master":
+        blocked = random.sample(
+            [p for p in game["players"] if p["id"] != user_id and p["alive"]], 2
+        )
+        for b in blocked:
+            b["vote_blocked"] = True
+        power_text = f"😱 You blocked {blocked[0]['name']} and {blocked[1]['name']} from voting."
+
+    # Commoner Powers
+    elif role == "Village Elder":
+        player["double_vote"] = True
+        power_text = "⚖️ Your vote will have double power this round."
+
+    elif role == "Ghost":
+        if not player.get("used_afterlife_vote"):
+            player["afterlife_vote"] = True
+            player["used_afterlife_vote"] = True
+            power_text = "👻 You may vote once from the afterlife."
+        else:
+            power_text = "❌ You already used your ghost vote."
+
+    elif role == "Cursed One":
+        target["cursed"] = True
+        power_text = f"🧿 {target['name']} is cursed. They will lose XP next round."
+
+    elif role == "Fairy Spy":
+        info = "Villain" if target["type"] == "Villain" else "Fairy or Commoner"
+        power_text = f"🕵️ Intel: {target['name']} is *{info}*."
 
     else:
-        power_text = f"✅ You used your power on @{target['username']}."
+        power_text = "❌ Your role has no special power implemented yet."
 
-    await callback.message.edit_text(power_text)
+    await callback_query.answer("✅ Power used!", show_alert=False)
+    await client.send_message(user_id, f"🎯 Power Result:\n{power_text}")
 
-    if public_announce:
-        await client.send_message(chat_id, public_announce)
+    if group_announce:
+        await client.send_message(chat_id, group_announce)
 
 
 
