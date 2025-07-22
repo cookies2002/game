@@ -345,7 +345,6 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
 
 
 
-
 @bot.on_message(filters.command("vote"))
 async def vote_player(client, message: Message):
     chat_id = message.chat.id
@@ -354,8 +353,9 @@ async def vote_player(client, message: Message):
     if chat_id not in games:
         return await message.reply("⚠️ No game in progress.")
 
-    players = games[chat_id]["players"]
-    votes = games[chat_id].get("votes", {})
+    game = games[chat_id]
+    players = game["players"]
+    votes = game.get("votes", {})
 
     voter = next((p for p in players if p["id"] == voter_id and p["alive"]), None)
     if not voter:
@@ -373,11 +373,7 @@ async def vote_player(client, message: Message):
     target = None
     for p in players:
         username = p.get("username") or p["name"].lstrip("@")
-        if (
-            username.lower() == target_username
-            and p["alive"]
-            and not p.get("invisible")
-        ):
+        if username.lower() == target_username and p["alive"] and not p.get("invisible"):
             target = p
             break
 
@@ -387,63 +383,58 @@ async def vote_player(client, message: Message):
     if voter_id in votes:
         return await message.reply("❌ You already voted this round.")
 
-    # Register the vote
-    votes[voter_id] = target["id"]
-    games[chat_id]["votes"] = votes
+    # Store vote with weighted power
+    vote_weight = 2 if voter["role"] == "Commoner" and voter["power_name"] == "Village Elder" else 1
+    votes[voter_id] = {"target_id": target["id"], "weight": vote_weight}
+    game["votes"] = votes
 
     await message.reply(f"🗳️ Your vote for {target['name']} has been registered!")
 
-    # Tally the votes
+    # Tally weighted votes
     vote_counts = {}
-    for t_id in votes.values():
-        vote_counts[t_id] = vote_counts.get(t_id, 0) + 1
+    for vote in votes.values():
+        target_id = vote["target_id"]
+        weight = vote["weight"]
+        vote_counts[target_id] = vote_counts.get(target_id, 0) + weight
 
-    # Majority calculation
-    alive_count = sum(p["alive"] and not p.get("invisible") for p in players)
-    majority = alive_count // 2 + 1
+    # Determine majority (based on weighted alive players)
+    total_votes = sum(
+        2 if p["role"] == "Commoner" and p["power_name"] == "Village Elder" else 1
+        for p in players if p["alive"] and not p.get("invisible") and not p.get("feared")
+    )
+    majority = (total_votes // 2) + 1
 
-    # Check if someone has majority votes
-    for pid, count in vote_counts.items():
+    # Check for elimination
+    for target_id, count in vote_counts.items():
         if count >= majority:
-            eliminated = next((p for p in players if p["id"] == pid), None)
+            eliminated = next((p for p in players if p["id"] == target_id), None)
             if eliminated:
                 eliminated["alive"] = False
                 await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
 
-                games[chat_id]["votes"] = {}  # Reset votes
-
-                # ✅ FIXED: Correct winner check logic
-                await check_game_end(client, message, games[chat_id])
+                game["votes"] = {}  # Reset votes
+                await check_game_end(client, message, game)
             break
+
             
 async def check_game_end(client, message, game):
-    chat_id = message.chat.id
     players = game["players"]
+    chat_id = message.chat.id
 
-    alive_players = [p for p in players.values() if p["alive"]]
+    fairies_alive = [p for p in players if p["alive"] and p["team"] == "Fairy"]
+    villains_alive = [p for p in players if p["alive"] and p["team"] == "Villain"]
 
-    villains_alive = [p for p in alive_players if p["role"] == "Villain"]
-    fairies_commoners_alive = [p for p in alive_players if p["role"] in ["Fairy", "Commoner"]]
-
-    # Villains win
-    if len(villains_alive) >= len(fairies_commoners_alive):
-        winner_names = [f'<a href="tg://user?id={p["id"]}">{p["name"]}</a>' for p in villains_alive]
-        await message.reply(
-            f"💀 Villains have taken over!\n\n🏆 <b>Villain Team Wins!</b>\n🎯 Survivors:\n" + "\n".join(winner_names),
-            parse_mode=ParseMode.HTML
-        )
+    if not fairies_alive:
+        # Villain team wins
+        winners = [p["name"] for p in players if p["alive"] and p["team"] == "Villain" or p["role"] == "Commoner"]
+        await client.send_message(chat_id, f"🏆 Villains have won the game!\n\nWinners: {', '.join(winners)}")
         games.pop(chat_id, None)
-        return
 
-    # Fairies/Commoners win
-    if len(villains_alive) == 0:
-        winner_names = [f'<a href="tg://user?id={p["id"]}">{p["name"]}</a>' for p in fairies_commoners_alive]
-        await message.reply(
-            f"🧚‍♀️ Villains have been defeated!\n\n🏆 <b>Fairy Team Wins!</b>\n🎉 Survivors:\n" + "\n".join(winner_names),
-            parse_mode=ParseMode.HTML
-        )
+    elif not villains_alive:
+        # Fairy team wins
+        winners = [p["name"] for p in players if p["alive"] and p["team"] == "Fairy" or p["role"] == "Commoner"]
+        await client.send_message(chat_id, f"🏆 Fairies have triumphed!\n\nWinners: {', '.join(winners)}")
         games.pop(chat_id, None)
-        return
 
 
 # /upgrade
