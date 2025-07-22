@@ -233,7 +233,6 @@ async def use_power_handler(client: Client, message: Message):
 
 @bot.on_callback_query(filters.regex(r"^usepower:(\d+):(-?\d+)$"))
 # Updated handle_usepower_callback with proper logic enforcement and DM alerts
-# Maintain state for used powers
 # --- Power Usage Handler ---
 async def handle_usepower_callback(client, callback_query: CallbackQuery):
     from_user = callback_query.from_user
