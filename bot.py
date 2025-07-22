@@ -141,7 +141,7 @@ async def join_game(client: Client, message: Message):
 
 
 async def assign_roles_and_start(client, chat_id):
-    players = games[chat_id]["players"]
+    players = list(games[chat_id]["players"].values())
     random.shuffle(players)
     total = len(players)
     fairy_count = total // 3
@@ -158,11 +158,38 @@ async def assign_roles_and_start(client, chat_id):
     for player, (rtype, rname) in zip(players, assignments):
         player["type"] = rtype
         player["role"] = rname
-        try:
-            await client.send_message(
-                player["id"],
-                f"🎭 You are a {rtype} - {rname}\n\n🧙 Power: {powers.get(rname, 'None')}"
+        player["team"] = rtype if rtype in ["Fairy", "Villain"] else None
+        player["alive"] = True
+        player["power_used"] = False
+        player["power_target"] = None
+        player["vote"] = None
+        player["joined_team"] = None
+
+        # Compose message
+        role_msg = f"🎭 You are a {rtype} - {rname}\n\n🧙 Power: {powers.get(rname, 'None')}"
+
+        # Add extra instructions based on type
+        if rtype == "Fairy":
+            role_msg += (
+                "\n\n✨ As a Fairy, your goal is to defeat all Villains.\n"
+                "Use `/usepower` to protect, expose, or strike Villains.\n"
+                "Work with Commoners during voting."
             )
+        elif rtype == "Villain":
+            role_msg += (
+                "\n\n😈 As a Villain, your goal is to eliminate all Fairies and Commoners.\n"
+                "Use `/usepower` secretly to destroy or block others.\n"
+                "Be careful not to get caught during voting!"
+            )
+        else:  # Commoner
+            role_msg += (
+                "\n\n👤 You are a Commoner.\n"
+                "You have no powers but your vote is powerful.\n"
+                "Work with Fairies to eliminate Villains."
+            )
+
+        try:
+            await client.send_message(player["id"], role_msg)
         except:
             pass
 
@@ -345,6 +372,105 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
     if group_announce:
         await client.send_message(chat_id, group_announce)
 
+@bot.on_message(filters.command("vote"))
+async def vote_player(client, message: Message):
+    chat_id = message.chat.id
+    voter_id = message.from_user.id
+
+    if chat_id not in games:
+        return await message.reply("⚠️ No game in progress.")
+
+    game = games[chat_id]
+    players = game["players"]
+    votes = game.get("votes", {})
+
+    voter = next((p for p in players if p["id"] == voter_id and p["alive"]), None)
+    if not voter:
+        return await message.reply("❌ You are not in the game or already eliminated.")
+
+    if voter.get("feared") or voter.get("vote_blocked"):
+        return await message.reply("😨 You are blocked and cannot vote this round!")
+
+    if len(message.command) < 2:
+        return await message.reply("❌ Usage: /vote @username")
+
+    target_username = message.command[1].lstrip("@").lower()
+
+    # Find the target player by username
+    target = None
+    for p in players:
+        username = p.get("username") or p["name"].lstrip("@")
+        if username.lower() == target_username and p["alive"] and not p.get("invisible"):
+            target = p
+            break
+
+    if not target:
+        return await message.reply("❌ Target not found, not alive, or is invisible.")
+
+    if voter_id in votes:
+        return await message.reply("❌ You already voted this round.")
+
+    # Check for Village Elder double vote
+    vote_weight = 2 if voter.get("role") == "Village Elder" and voter.get("type") == "Commoner" and voter.get("double_vote") else 1
+
+    votes[voter_id] = {"target_id": target["id"], "weight": vote_weight}
+    game["votes"] = votes
+
+    await message.reply(f"🗳️ Your vote for {target['name']} has been registered!")
+
+    # Count total votes
+    vote_counts = {}
+    for vote in votes.values():
+        target_id = vote["target_id"]
+        weight = vote["weight"]
+        vote_counts[target_id] = vote_counts.get(target_id, 0) + weight
+
+    # Total voting power (alive players)
+    total_votes = sum(
+        2 if p.get("role") == "Village Elder" and p.get("type") == "Commoner" and p.get("double_vote")
+        else 1
+        for p in players if p["alive"] and not p.get("invisible") and not p.get("vote_blocked")
+    )
+    majority = total_votes // 2 + 1
+
+    # Eliminate player with majority
+    for target_id, count in vote_counts.items():
+        if count >= majority:
+            eliminated = next((p for p in players if p["id"] == target_id), None)
+            if eliminated:
+                eliminated["alive"] = False
+                await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
+
+                game["votes"] = {}  # Reset votes
+                await check_game_end(client, message, game)
+            break
+
+async def check_game_end(client, message, game):
+    players = game["players"]
+    chat_id = message.chat.id
+
+    fairies_alive = [p for p in players if p["alive"] and p.get("team") == "Fairy"]
+    villains_alive = [p for p in players if p["alive"] and p.get("team") == "Villain"]
+
+    if not fairies_alive:
+        # Villain team wins
+        winners = [
+            p["name"]
+            for p in players
+            if p["alive"] and (p.get("team") == "Villain" or (p.get("type") == "Commoner" and p.get("joined_team") == "Villain"))
+        ]
+        await client.send_message(chat_id, f"🏆 Villains have won the game!\n\nWinners: {', '.join(winners)}")
+        games.pop(chat_id, None)
+
+    elif not villains_alive:
+        # Fairy team wins
+        winners = [
+            p["name"]
+            for p in players
+            if p["alive"] and (p.get("team") == "Fairy" or (p.get("type") == "Commoner" and p.get("joined_team") == "Fairy"))
+        ]
+        await client.send_message(chat_id, f"🏆 Fairies have triumphed!\n\nWinners: {', '.join(winners)}")
+        games.pop(chat_id, None)
 
 
 
