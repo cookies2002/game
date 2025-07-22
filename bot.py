@@ -526,12 +526,110 @@ async def upgrade_power(client, message: Message):
 # /shop
 @bot.on_message(filters.command("shop"))
 async def open_shop(client, message: Message):
-    await message.reply("🛒 Shop Items:\n- Shield: 3 coins\n- Scroll: 5 coins\n- Extra Vote: 4 coins")
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+
+    # Search player in current game
+    for game in games.values():
+        for player in game["players"].values():
+            if player["id"] == user_id:
+                coins = player.get("coins", 0)
+                xp = player.get("xp", 0)
+                level = player.get("level", 1)
+
+                text = (
+                    f"🛒 <b>Shop Items</b>\n"
+                    f"💰 Coins: <b>{coins}</b>\n"
+                    f"⭐ XP: <b>{xp}</b>\n"
+                    f"⬆️ Level: <b>{level}</b>\n\n"
+                    f"🧷 Available:\n"
+                    f"- 🛡️ Shield: 3 coins\n"
+                    f"- 📜 Scroll: 5 coins\n"
+                    f"- ⚖️ Extra Vote: 4 coins"
+                )
+
+                buttons = [
+                    [
+                        InlineKeyboardButton("🛡️ Buy Shield", callback_data=f"buy:shield:{chat_id}"),
+                        InlineKeyboardButton("📜 Buy Scroll", callback_data=f"buy:scroll:{chat_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("⚖️ Buy Extra Vote", callback_data=f"buy:vote:{chat_id}")
+                    ]
+                ]
+
+                return await message.reply(
+                    text,
+                    parse_mode="html",
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+
+    await message.reply("❌ You are not part of an active game.")
+
+@bot.on_callback_query(filters.regex(r"^buy:(\w+):(-?\d+)$"))
+async def handle_shop_purchase(client, callback_query: CallbackQuery):
+    item, chat_id = callback_query.matches[0].groups()
+    user_id = callback_query.from_user.id
+
+    chat_id = int(chat_id)
+    game = games.get(chat_id)
+    if not game:
+        return await callback_query.answer("❌ Game not found.", show_alert=True)
+
+    player = next((p for p in game["players"].values() if p["id"] == user_id), None)
+    if not player:
+        return await callback_query.answer("❌ Player not found.", show_alert=True)
+
+    coins = player.get("coins", 0)
+    item_prices = {"shield": 3, "scroll": 5, "vote": 4}
+
+    if item not in item_prices:
+        return await callback_query.answer("❌ Unknown item.", show_alert=True)
+
+    price = item_prices[item]
+    if coins < price:
+        return await callback_query.answer("💰 Not enough coins!", show_alert=True)
+
+    # Deduct coins and apply item effect
+    player["coins"] -= price
+
+    if item == "shield":
+        player["shop_shield"] = True
+        msg = "🛡️ Shield purchased!"
+    elif item == "scroll":
+        player["shop_scroll"] = True
+        msg = "📜 Scroll purchased!"
+    elif item == "vote":
+        player["extra_vote"] = True
+        msg = "⚖️ Extra vote purchased!"
+
+    await callback_query.answer("✅ Purchase successful!", show_alert=True)
+    await client.send_message(user_id, f"{msg} You have {player['coins']} coins left.")
+    
 
 # /myxp
 @bot.on_message(filters.command("myxp"))
 async def show_xp(client, message: Message):
-    await message.reply("⭐ XP: 20 | 💰 Coins: 5 (Sample stats)")
+    user_id = message.from_user.id
+
+    # Search in all games for this player
+    for game in games.values():
+        for player in game["players"].values():
+            if player["id"] == user_id:
+                xp = player.get("xp", 0)
+                coins = player.get("coins", 0)
+                level = player.get("level", 1)
+                await client.send_message(
+                    user_id,
+                    f"📊 <b>Your XP Stats</b>\n\n"
+                    f"⭐ XP: <b>{xp}</b>\n"
+                    f"💰 Coins: <b>{coins}</b>\n"
+                    f"⬆️ Level: <b>{level}</b>",
+                    parse_mode="html"
+                )
+                return
+
+    await message.reply("❌ You are not in an active game.")
 
 # /mystats
 @bot.on_message(filters.command("mystats"))
