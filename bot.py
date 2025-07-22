@@ -141,59 +141,60 @@ async def join_game(client: Client, message: Message):
 
 
 async def assign_roles_and_start(client, chat_id):
-    players = list(games[chat_id]["players"].values())
-    random.shuffle(players)
-    total = len(players)
-    fairy_count = total // 3
-    villain_count = total // 3
-    commoner_count = total - fairy_count - villain_count
+    players = games[chat_id]["players"]  # ✅ Already a list
+    random.shuffle(players)
 
-    assignments = (
-        [("Fairy", r) for r in random.sample(roles["Fairy"], k=fairy_count)] +
-        [("Villain", r) for r in random.sample(roles["Villain"], k=villain_count)] +
-        [("Commoner", r) for r in random.sample(roles["Commoner"], k=commoner_count)]
-    )
-    random.shuffle(assignments)
+    total = len(players)
+    fairy_count = total // 3
+    villain_count = total // 3
+    commoner_count = total - fairy_count - villain_count
 
-    for player, (rtype, rname) in zip(players, assignments):
-        player["type"] = rtype
-        player["role"] = rname
-        player["team"] = rtype if rtype in ["Fairy", "Villain"] else None
-        player["alive"] = True
-        player["power_used"] = False
-        player["power_target"] = None
-        player["vote"] = None
-        player["joined_team"] = None
+    assignments = (
+        [("Fairy", r) for r in random.sample(roles["Fairy"], k=fairy_count)] +
+        [("Villain", r) for r in random.sample(roles["Villain"], k=villain_count)] +
+        [("Commoner", r) for r in random.sample(roles["Commoner"], k=commoner_count)]
+    )
+    random.shuffle(assignments)
 
-        # Compose message
-        role_msg = f"🎭 You are a {rtype} - {rname}\n\n🧙 Power: {powers.get(rname, 'None')}"
+    for player, (rtype, rname) in zip(players, assignments):
+        player["type"] = rtype
+        player["role"] = rname
+        player["team"] = rtype if rtype in ["Fairy", "Villain"] else None
+        player["alive"] = True
+        player["power_used"] = False
+        player["power_target"] = None
+        player["vote"] = None
+        player["joined_team"] = None
 
-        # Add extra instructions based on type
-        if rtype == "Fairy":
-            role_msg += (
-                "\n\n✨ As a Fairy, your goal is to defeat all Villains.\n"
-                "Use `/usepower` to protect, expose, or strike Villains.\n"
-                "Work with Commoners during voting."
-            )
-        elif rtype == "Villain":
-            role_msg += (
-                "\n\n😈 As a Villain, your goal is to eliminate all Fairies and Commoners.\n"
-                "Use `/usepower` secretly to destroy or block others.\n"
-                "Be careful not to get caught during voting!"
-            )
-        else:  # Commoner
-            role_msg += (
-                "\n\n👤 You are a Commoner.\n"
-                "You have no powers but your vote is powerful.\n"
-                "Work with Fairies to eliminate Villains."
-            )
+        # DM Message
+        role_msg = f"🎭 You are a {rtype} - {rname}\n\n🧙 Power: {powers.get(rname, 'None')}"
 
-        try:
-            await client.send_message(player["id"], role_msg)
-        except:
-            pass
+        if rtype == "Fairy":
+            role_msg += (
+                "\n\n✨ As a Fairy, your goal is to defeat all Villains.\n"
+                "Use /usepower to protect, expose, or strike Villains.\n"
+                "Work with Commoners during voting."
+            )
+        elif rtype == "Villain":
+            role_msg += (
+                "\n\n😈 As a Villain, your goal is to eliminate all Fairies and Commoners.\n"
+                "Use /usepower secretly to destroy or block others.\n"
+                "Avoid detection during voting!"
+            )
+        else:
+            role_msg += (
+                "\n\n👤 You are a Commoner.\n"
+                "You have no powers but your vote is powerful.\n"
+                "Work with Fairies to eliminate Villains."
+            )
 
-    games[chat_id]["roles_assigned"] = True
+        try:
+            await client.send_message(player["id"], role_msg)
+        except:
+            pass  # Bot can't DM if user didn't start it
+
+    games[chat_id]["roles_assigned"] = True
+
 
 @bot.on_message(filters.command("usepower"))
 async def use_power_handler(client: Client, message: Message):
@@ -446,31 +447,49 @@ async def vote_player(client, message: Message):
             break
 
 async def check_game_end(client, message, game):
-    players = game["players"]
     chat_id = message.chat.id
+    players = game["players"]
 
+    # Count alive players by team
     fairies_alive = [p for p in players if p["alive"] and p.get("team") == "Fairy"]
     villains_alive = [p for p in players if p["alive"] and p.get("team") == "Villain"]
 
+    # Game End Condition 1: All Fairies are dead → Villains win
     if not fairies_alive:
-        # Villain team wins
         winners = [
-            p["name"]
-            for p in players
-            if p["alive"] and (p.get("team") == "Villain" or (p.get("type") == "Commoner" and p.get("joined_team") == "Villain"))
+            p["name"] for p in players
+            if p["alive"] and (
+                p.get("team") == "Villain" or 
+                (p.get("type") == "Commoner" and p.get("joined_team") == "Villain")
+            )
         ]
-        await client.send_message(chat_id, f"🏆 Villains have won the game!\n\nWinners: {', '.join(winners)}")
+        await client.send_message(
+            chat_id,
+            f"💀 All Fairies are defeated!\n\n🏆 <b>Villains Win!</b>\n🎉 Winners: {', '.join(winners)}",
+            parse_mode=ParseMode.HTML
+        )
         games.pop(chat_id, None)
+        return
 
-    elif not villains_alive:
-        # Fairy team wins
+    # Game End Condition 2: All Villains are dead → Fairies win
+    if not villains_alive:
         winners = [
-            p["name"]
-            for p in players
-            if p["alive"] and (p.get("team") == "Fairy" or (p.get("type") == "Commoner" and p.get("joined_team") == "Fairy"))
+            p["name"] for p in players
+            if p["alive"] and (
+                p.get("team") == "Fairy" or 
+                (p.get("type") == "Commoner" and p.get("joined_team") == "Fairy")
+            )
         ]
-        await client.send_message(chat_id, f"🏆 Fairies have triumphed!\n\nWinners: {', '.join(winners)}")
+        await client.send_message(
+            chat_id,
+            f"💥 All Villains are eliminated!\n\n🌟 <b>Fairies Triumph!</b>\n🎉 Winners: {', '.join(winners)}",
+            parse_mode=ParseMode.HTML
+        )
         games.pop(chat_id, None)
+        return
+
+    # Game continues
+
 
 
 
