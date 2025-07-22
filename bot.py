@@ -203,6 +203,10 @@ async def use_power_handler(client: Client, message: Message):
 
 
 @bot.on_callback_query(filters.regex(r"^usepower:(\d+):(-?\d+)$"))
+# Updated handle_usepower_callback with proper logic enforcement and DM alerts
+# Maintain state for used powers
+used_powers = {}
+
 async def handle_usepower_callback(client, callback_query: CallbackQuery):
     from_user = callback_query.from_user
     target_id, chat_id = map(int, callback_query.matches[0].groups())
@@ -223,62 +227,82 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
     role = player.get("role")
     power_text = ""
     group_announce = ""
+    blocked_alert = ""
 
-    # Fairy Powers
+    # Only allow 1-time power usage unless special
+    if used_powers.get((chat_id, user_id)) and role != "Demon Lord":
+        return await callback_query.answer("❌ You have already used your power.", show_alert=True)
+    used_powers[(chat_id, user_id)] = True
+
+    # --- Fairy Powers ---
     if role == "Moonlight Fairy":
         target["shielded"] = True
-        power_text = f"🛡️ You shielded {target['name']} from any attack this round."
+        power_text = f"🛡️ You shielded {target['name']} from attacks this round."
+        blocked_alert = "You were shielded by Moonlight Fairy."
 
     elif role == "Dream Healer":
         target["healed"] = True
-        power_text = f"💊 You will heal {target['name']} if they are attacked."
+        power_text = f"💊 If {target['name']} is attacked, they will be healed."
+        blocked_alert = "Dream Healer is protecting you tonight."
 
     elif role == "Flame Fairy":
         if target.get("shielded"):
-            power_text = f"🛡️ {target['name']} was shielded. Attack failed."
+            power_text = f"🛡️ {target['name']} was shielded. Your flame failed."
+            blocked_alert = "You were attacked but shielded!"
         else:
             target["alive"] = False
-            group_announce = f"💀 {target['name']} was defeated! 🎯 Attacked by: {player['name']}"
-            power_text = f"🔥 You burned {target['name']}."
+            group_announce = f"💀 {target['name']} was burned by a Flame Fairy!"
+            power_text = f"🔥 You successfully burned {target['name']}!"
+            blocked_alert = f"🔥 You were attacked by a Flame Fairy and eliminated."
 
     elif role == "Fairy Queen":
         target["power_blocked"] = True
         power_text = f"🚫 {target['name']}'s power is blocked this round."
+        blocked_alert = f"🚫 Your power was blocked by the Fairy Queen!"
 
     elif role == "Star Whisperer":
         identity = "Villain" if target["type"] == "Villain" else "Not a Villain"
-        power_text = f"🔍 Result: {target['name']} is *{identity}*."
+        power_text = f"🔍 Your target {target['name']} is {identity}."
 
-    # Villain Powers
+    # --- Villain Powers ---
     elif role == "Soul Eater":
         target["xp_drained"] = True
-        power_text = f"☠️ If {target['name']} dies, you gain their XP."
+        power_text = f"☠️ You will absorb XP from {target['name']} if they die."
+        blocked_alert = f"☠️ Soul Eater marked you."
 
     elif role == "Dark Witch":
         target["silenced"] = True
-        power_text = f"🔇 {target['name']} is silenced for 1 round."
+        power_text = f"🔇 {target['name']} is silenced this round."
+        blocked_alert = f"🔇 You are silenced by a Dark Witch."
 
     elif role == "Nightmare":
         random_target = random.choice([p for p in game["players"] if p["alive"] and p["id"] != target_id])
         target["redirect_to"] = random_target["id"]
-        power_text = f"🌫️ You redirected {target['name']}'s action to {random_target['name']}."
+        power_text = f"🌫️ {target['name']}'s actions are redirected to {random_target['name']}."
+        blocked_alert = f"🌫️ Nightmare twisted your power tonight."
 
     elif role == "Shadow":
         target["blinded"] = True
-        power_text = f"🌑 {target['name']}'s vote won’t count this round."
+        power_text = f"🌑 {target['name']}'s vote will not count."
+        blocked_alert = f"🌑 You were blinded. Your vote won’t count."
 
     elif role == "Fear Master":
-        blocked = random.sample(
-            [p for p in game["players"] if p["id"] != user_id and p["alive"]], 2
-        )
+        alive_others = [p for p in game["players"] if p["id"] != user_id and p["alive"]]
+        if len(alive_others) < 2:
+            return await callback_query.answer("❌ Not enough players to block.", show_alert=True)
+        blocked = random.sample(alive_others, 2)
         for b in blocked:
             b["vote_blocked"] = True
+            try:
+                await client.send_message(b["id"], f"😱 You were blocked from voting by the Fear Master!")
+            except: pass
         power_text = f"😱 You blocked {blocked[0]['name']} and {blocked[1]['name']} from voting."
+        group_announce = "😨 Fear Master has blocked 2 players from voting this round!"
 
-    # Commoner Powers
+    # --- Commoner Powers ---
     elif role == "Village Elder":
         player["double_vote"] = True
-        power_text = "⚖️ Your vote will have double power this round."
+        power_text = "⚖️ Your vote will have double power."
 
     elif role == "Ghost":
         if not player.get("used_afterlife_vote"):
@@ -290,20 +314,35 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
 
     elif role == "Cursed One":
         target["cursed"] = True
-        power_text = f"🧿 {target['name']} is cursed. They will lose XP next round."
+        power_text = f"🧿 {target['name']} is cursed and will lose XP next round."
+        blocked_alert = f"🧿 You were cursed by the Cursed One."
 
     elif role == "Fairy Spy":
         info = "Villain" if target["type"] == "Villain" else "Fairy or Commoner"
-        power_text = f"🕵️ Intel: {target['name']} is *{info}*."
+        power_text = f"🕵️ {target['name']} is {info}."
 
-    else:
-        power_text = "❌ Your role has no special power implemented yet."
+    elif role == "Demon Lord":
+        # Special: use power twice (track manually or allow again later)
+        if used_powers.get((chat_id, user_id), 0) >= 2:
+            return await callback_query.answer("❌ Demon Lord can only use power 2 times.", show_alert=True)
+        used_powers[(chat_id, user_id)] = used_powers.get((chat_id, user_id), 0) + 1
+        target["vote_blocked"] = True
+        target["silenced"] = True
+        power_text = f"😈 You silenced and blocked {target['name']} from voting."
+        blocked_alert = f"😈 Demon Lord has silenced and blocked you!"
 
+    # --- Final Messaging ---
     await callback_query.answer("✅ Power used!", show_alert=False)
     await client.send_message(user_id, f"🎯 Power Result:\n{power_text}")
 
+    if blocked_alert:
+        try:
+            await client.send_message(target["id"], blocked_alert)
+        except: pass
+
     if group_announce:
         await client.send_message(chat_id, group_announce)
+
 
 
 
