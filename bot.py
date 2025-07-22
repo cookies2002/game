@@ -515,12 +515,37 @@ async def view_profile(client, message: Message):
 #/stats
 @bot.on_message(filters.command("stats"))
 async def show_stats(client, message: Message):
-    chat_id = message.chat.id
-    if chat_id not in games:
-        return await message.reply("⚠️ No game running.")
-    alive = get_alive_players(chat_id)
-    phase = games[chat_id].get('phase', '❓ Unknown')
-    await message.reply(f"📊 Game Stats:\n- Alive: {len(alive)}\n- Phase: {phase}")
+    chat_id = message.chat.id
+
+    if chat_id not in games:
+        return await message.reply("⚠️ No game running.")
+
+    game = games[chat_id]
+    players = game["players"]
+    phase = game.get("phase", "❓ Unknown")
+
+    alive_players = [p for p in players.values() if p["alive"]]
+    dead_players = [p for p in players.values() if not p["alive"]]
+
+    def format_player(p):
+        emoji = "🧚" if p.get("team") == "Fairy" else "😈" if p.get("team") == "Villain" else "👤"
+        return f"{emoji} {p['name']} ({p['type']})"
+
+    alive_text = "\n".join([format_player(p) for p in alive_players]) or "None"
+    dead_text = "\n".join([format_player(p) for p in dead_players]) or "None"
+
+    # Optional: recent attacks
+    attack_log = game.get("attack_log", [])
+    attack_text = "\n".join([f"🎯 {a['attacker']} ➤ {a['target']}" for a in attack_log[-5:]]) or "No recent attacks"
+
+    await message.reply(
+        f"📊 <b>Game Stats</b>\n"
+        f"🕓 <b>Phase:</b> {phase}\n\n"
+        f"🟢 <b>Alive ({len(alive_players)}):</b>\n{alive_text}\n\n"
+        f"🔴 <b>Defeated ({len(dead_players)}):</b>\n{dead_text}\n\n"
+        f"🎯 <b>Recent Attacks:</b>\n{attack_text}",
+        parse_mode="html"
+    )
 
 # /leaderboard
 @bot.on_message(filters.command("leaderboard"))
