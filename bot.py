@@ -533,45 +533,86 @@ async def open_shop(client, message: Message):
 async def show_xp(client, message: Message):
     await message.reply("⭐ XP: 20 | 💰 Coins: 5 (Sample stats)")
 
-# /profile
-@bot.on_message(filters.command("profile"))
-async def view_profile(client, message: Message):
-    await message.reply("🧝 Profile:\n- Role: Unknown\n- Type: Unknown\n- XP: 20\n- Coins: 5")
+# /mystats
+@bot.on_message(filters.command("mystats"))
+async def mystats(client, message: Message):
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+
+    # Search all games for this user
+    for game in games.values():
+        for player in game["players"].values():
+            if player["id"] == user_id:
+                team = player.get("team", "Unknown")
+                type_ = player.get("type", "Unknown")
+                xp = player.get("xp", 0)
+                coins = player.get("coins", 0)
+                level = player.get("level", 1)
+                alive = "🟢 Alive" if player.get("alive", True) else "🔴 Defeated"
+                power_used = "✅ Used" if player.get("power_used") else "❌ Not Used"
+                power_name = powers.get(type_, "Unknown")
+
+                return await client.send_message(
+                    user_id,
+                    f"📊 <b>Your Game Stats</b>\n\n"
+                    f"🙍 Name: <b>{user_name}</b>\n"
+                    f"🏷️ Role: <b>{type_}</b>\n"
+                    f"🛡️ Team: <b>{team}</b>\n"
+                    f"🎮 Status: {alive}\n"
+                    f"🪄 Power: <b>{power_name}</b>\n"
+                    f"🔋 Power Used: {power_used}\n"
+                    f"⭐ XP: <b>{xp}</b>\n"
+                    f"💰 Coins: <b>{coins}</b>\n"
+                    f"⬆️ Level: <b>{level}</b>",
+                    parse_mode="html"
+                )
+
+    # If not found in any game
+    await message.reply("⚠️ You are not in any ongoing game.")
+
     
-#/stats
+# /stats
 @bot.on_message(filters.command("stats"))
 async def show_stats(client, message: Message):
     chat_id = message.chat.id
 
-    if chat_id not in games:
-        return await message.reply("⚠️ No game running.")
+    if chat_id not in games or "players" not in games[chat_id]:
+        return await message.reply("⚠️ No game is currently running.")
 
     game = games[chat_id]
     players = game["players"]
-    phase = game.get("phase", "❓ Unknown")
+    phase = game.get("phase", "❓ Unknown Phase")
 
     alive_players = [p for p in players.values() if p["alive"]]
     dead_players = [p for p in players.values() if not p["alive"]]
 
     def format_player(p):
-        emoji = "🧚" if p.get("team") == "Fairy" else "😈" if p.get("team") == "Villain" else "👤"
-        return f"{emoji} {p['name']} ({p['type']})"
+        if p.get("team") == "Fairy":
+            emoji = "🧚"
+        elif p.get("team") == "Villain":
+            emoji = "😈"
+        else:
+            emoji = "👤"
+        return f"{emoji} <b>{p['name']}</b> ({p['type']})"
 
     alive_text = "\n".join([format_player(p) for p in alive_players]) or "None"
     dead_text = "\n".join([format_player(p) for p in dead_players]) or "None"
 
-    # Optional: recent attacks
+    # Optional: recent attacks (last 5)
     attack_log = game.get("attack_log", [])
-    attack_text = "\n".join([f"🎯 {a['attacker']} ➤ {a['target']}" for a in attack_log[-5:]]) or "No recent attacks"
+    attack_text = "\n".join(
+        [f"🎯 <b>{a['attacker']}</b> ➤ <b>{a['target']}</b>" for a in attack_log[-5:]]
+    ) or "No recent attacks"
 
     await message.reply(
         f"📊 <b>Game Stats</b>\n"
-        f"🕓 <b>Phase:</b> {phase}\n\n"
+        f"🕓 <b>Current Phase:</b> {phase}\n\n"
         f"🟢 <b>Alive ({len(alive_players)}):</b>\n{alive_text}\n\n"
         f"🔴 <b>Defeated ({len(dead_players)}):</b>\n{dead_text}\n\n"
         f"🎯 <b>Recent Attacks:</b>\n{attack_text}",
         parse_mode="html"
     )
+
 
 # /leaderboard
 @bot.on_message(filters.command("leaderboard"))
