@@ -492,7 +492,6 @@ async def check_game_end(client, message, game):
 
 
 
-
 # /upgrade
 @bot.on_message(filters.command("upgrade"))
 async def upgrade_power(client, message: Message):
