@@ -1,5 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from config import bot
 
 from bot import games  # Global memory for game state
 
