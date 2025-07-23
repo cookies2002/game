@@ -501,7 +501,7 @@ async def check_game_end(client, message, game):
     if not villains_alive:
         winners = [
             p["name"] for p in players
-            if p["alive"] and (
+            if p["alie"] and (
                 p.get("team") == "Fairy" or 
                 (p.get("type") == "Commoner" and p.get("joined_team") == "Fairy")
             )
@@ -570,55 +570,72 @@ async def open_shop(client, message: Message):
     await message.reply("❌ You are not part of the game.")
 
 
+# Combined Callback Handler
 @Client.on_callback_query()
-async def handle_shop_purchase(client: Client, callback_query: CallbackQuery):
-    data = callback_query.data  # Format: buy:shield:chat_id
+async def handle_callbacks(client, callback_query: CallbackQuery):
+    data = callback_query.data
     user_id = callback_query.from_user.id
 
-    if not data.startswith("buy:"):
-        return
+    # ========== Inventory View ==========
+    if data.startswith("inventory:"):
+        _, game_chat_id = data.split(":")
+        game = games.get(int(game_chat_id))
 
-    try:
-        _, item, game_chat_id = data.split(":")
-        game_chat_id = int(game_chat_id)
-    except:
-        return await callback_query.answer("⚠️ Invalid data.", show_alert=True)
+        if not game:
+            return await callback_query.answer("⚠️ Game not found.", show_alert=True)
 
-    game = games.get(game_chat_id)
-    if not game:
-        return await callback_query.answer("⚠️ Game not found.", show_alert=True)
+        for player in game["players"]:
+            if player.get("id") == user_id:
+                inventory = player.get("inventory", {})
+                text = (
+                    "🎒 <b>Your Inventory</b>\n\n"
+                    f"🛡 Shield: <b>{inventory.get('shield', 0)}</b>\n"
+                    f"📜 Scroll: <b>{inventory.get('scroll', 0)}</b>\n"
+                    f"⚖ Extra Vote: <b>{inventory.get('vote', 0)}</b>"
+                )
+                return await callback_query.message.reply(text, parse_mode=ParseMode.HTML)
 
-    item_prices = {
-        "shield": 3,
-        "scroll": 5,
-        "vote": 4
-    }
+        return await callback_query.answer("❌ You are not part of the game.", show_alert=True)
 
-    if item not in item_prices:
-        return await callback_query.answer("❌ Invalid item.", show_alert=True)
+    # ========== Buy Item ==========
+    if data.startswith("buy:"):
+        try:
+            _, item, game_chat_id = data.split(":")
+            game_chat_id = int(game_chat_id)
+        except:
+            return await callback_query.answer("⚠️ Invalid data.", show_alert=True)
 
-    for player in game["players"]:
-        if player["id"] == user_id:
-            if player.get("coins", 0) < item_prices[item]:
-                return await callback_query.answer(f"💸 Not enough coins (Need {item_prices[item]})", show_alert=True)
+        game = games.get(game_chat_id)
+        if not game:
+            return await callback_query.answer("⚠️ Game not found.", show_alert=True)
 
-            # Deduct coins and update inventory
-            player["coins"] -= item_prices[item]
-            inventory = player.setdefault("inventory", {})
-            inventory[item] = inventory.get(item, 0) + 1
+        item_prices = {
+            "shield": 3,
+            "scroll": 5,
+            "vote": 4
+        }
 
-            return await callback_query.answer(f"✅ Bought {item.capitalize()}!", show_alert=True)
+        if item not in item_prices:
+            return await callback_query.answer("❌ Invalid item.", show_alert=True)
 
-    return await callback_query.answer("❌ You are not part of this game.", show_alert=True)
+        for player in game["players"]:
+            if player["id"] == user_id:
+                if player.get("coins", 0) < item_prices[item]:
+                    return await callback_query.answer(f"💸 Not enough coins (Need {item_prices[item]})", show_alert=True)
 
-    
-# ===============================
-# /profile Command
-# ===============================
-@bot.on_message(filters.command("profile"))
+                player["coins"] -= item_prices[item]
+                inventory = player.setdefault("inventory", {})
+                inventory[item] = inventory.get(item, 0) + 1
+
+                return await callback_query.answer(f"✅ Bought {item.capitalize()}!", show_alert=True)
+
+        return await callback_query.answer("❌ You are not part of this game.", show_alert=True)
+
+
+# /profile command
+@Client.on_message(filters.command("profile"))
 async def show_profile(client, message: Message):
     user_id = message.from_user.id
-    chat_id = message.chat.id
 
     for game_chat_id, game in games.items():
         for player in game["players"]:
@@ -642,44 +659,14 @@ async def show_profile(client, message: Message):
                 buttons = [
                     [InlineKeyboardButton("🎒 View Inventory", callback_data=f"inventory:{game_chat_id}")]
                 ]
+
                 return await message.reply(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
 
     await message.reply("❌ You are not part of an active game.")
 
 
-# ===============================
-# Inventory Button Handler
-# ===============================
-@bot.on_callback_query()
-async def handle_inventory_button(client, callback_query):
-    data = callback_query.data  # Example: inventory:CHAT_ID
-    user_id = callback_query.from_user.id
-
-    if data.startswith("inventory:"):
-        _, game_chat_id = data.split(":")
-        game = games.get(int(game_chat_id))
-
-        if not game:
-            return await callback_query.answer("⚠️ Game not found.", show_alert=True)
-
-        for player in game["players"]:
-            if player.get("id") == user_id:
-                inventory = player.get("inventory", {})
-                text = (
-                    "🎒 <b>Your Inventory</b>\n\n"
-                    f"🛡 Shield: <b>{inventory.get('shield', 0)}</b>\n"
-                    f"📜 Scroll: <b>{inventory.get('scroll', 0)}</b>\n"
-                    f"⚖ Extra Vote: <b>{inventory.get('vote', 0)}</b>"
-                )
-                return await callback_query.message.reply(text, parse_mode=ParseMode.HTML)
-
-        await callback_query.answer("❌ You are not part of the game.", show_alert=True)
-
-
-# ===============================
-# /inventory command (manual)
-# ===============================
-@bot.on_message(filters.command("inventory"))
+# /inventory command
+@Client.on_message(filters.command("inventory"))
 async def inventory_command(client, message: Message):
     user_id = message.from_user.id
 
@@ -698,48 +685,35 @@ async def inventory_command(client, message: Message):
     await message.reply("❌ You are not part of an active game.")
 
 
-# ===============================
-# /use shield and /use scroll
-# ===============================
-@bot.on_message(filters.command(["use"]))
+# /use command
+@Client.on_message(filters.command("use"))
 async def use_item(client, message: Message):
     user_id = message.from_user.id
-    chat_id = message.chat.id
     args = message.text.split()
-    
+
     if len(args) < 2:
         return await message.reply("⚠️ Usage: /use shield or /use scroll")
 
     item = args[1].lower()
-    valid_items = ["shield", "scroll"]
-
-    if item not in valid_items:
+    if item not in ["shield", "scroll"]:
         return await message.reply("❌ Invalid item. Use /use shield or /use scroll")
 
     for game_chat_id, game in games.items():
         for player in game["players"]:
             if player.get("id") == user_id:
                 inventory = player.setdefault("inventory", {})
-                count = inventory.get(item, 0)
-
-                if count <= 0:
+                if inventory.get(item, 0) <= 0:
                     return await message.reply(f"❌ You don't have any {item.title()} left.")
 
-                # Apply item effect
+                inventory[item] -= 1
                 if item == "shield":
                     player["shield_active"] = True
                 elif item == "scroll":
                     player["scroll_active"] = True
 
-                # Deduct item
-                inventory[item] -= 1
-
                 return await message.reply(f"✅ You have used a {item.title()}!")
 
     await message.reply("❌ You are not part of an active game.")
-
-
-
 
 # /stats
 @bot.on_message(filters.command("stats"))
