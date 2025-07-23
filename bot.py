@@ -214,39 +214,44 @@ async def assign_roles_and_start(client, chat_id):
     games[chat_id]["roles_assigned"] = True
 
 
-@bot.on_message(filters.command("usepower"))
+@bot.on_message(filters.command("usepower") & filters.private)
 async def use_power_handler(client: Client, message: Message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
+    chat_id = message.chat.id
+    user_id = message.from_user.id
 
-    if chat_id not in games or not games[chat_id].get("started"):
-        return await message.reply("⚠️ You are not part of an active game.")
+    if user_id not in games:
+        return await message.reply("⚠️ You are not part of an active game.")
 
-    player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
-    if not player:
-        return await message.reply("⚠️ You're not in this game.")
-    if not player["alive"]:
-        return await message.reply("💀 Dead players can't use powers.")
+    game_data = games[user_id]
+    if not game_data.get("started"):
+        return await message.reply("⚠️ The game hasn't started yet.")
 
-    try:
-        alive_players = [p for p in games[chat_id]["players"] if p["id"] != user_id and p["alive"]]
-        if not alive_players:
-            return await client.send_message(user_id, "❌ No valid targets to use your power on.")
+    player = next((p for p in game_data["players"] if p["id"] == user_id), None)
+    if not player:
+        return await message.reply("⚠️ You're not in this game.")
+    if not player["alive"]:
+        return await message.reply("💀 Dead players can't use powers.")
 
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(p["name"], callback_data=f"usepower:{p['id']}:{chat_id}")]
-            for p in alive_players
-        ])
+    try:
+        alive_players = [
+            p for p in game_data["players"]
+            if p["id"] != user_id and p["alive"]
+        ]
+        if not alive_players:
+            return await message.reply("❌ No valid targets to use your power on.")
 
-        await client.send_message(
-            user_id,
-            f"🎭 You are a {player.get('type')} - {player.get('role')}\n\n🧙 Power: {powers.get(player.get('role'), 'Unknown Power')}\n\nSelect a player to use your power on:",
-            reply_markup=keyboard
-        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(p["name"], callback_data=f"usepower:{p['id']}:{user_id}")]
+            for p in alive_players
+        ])
 
-        await message.reply("🤫 Check your DM to use your power!")
-    except Exception:
-        await message.reply("❌ Could not DM you. Start a chat with me first.")
+        await message.reply(
+            f"🎭 You are a {player.get('type')} - {player.get('role')}\n\n🧙 Power: {powers.get(player.get('role'), 'Unknown Power')}\n\nSelect a player to use your power on:",
+            reply_markup=keyboard
+        )
+
+    except Exception:
+        await message.reply("❌ Could not show target list.")
 
 
 @bot.on_callback_query(filters.regex(r"^usepower:(\d+):(-?\d+)$"))
