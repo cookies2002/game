@@ -639,17 +639,19 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
     await callback_query.answer("❌ Player not found", show_alert=True)
 
 
-# ✅ Back to profile from inventory
+# ✅ Show user profile (with fallback if not in game)
 async def show_profile(client, message):
     chat_id = message.chat.id
     user_id = message.from_user.id if message.from_user else None
 
     game = games.get(chat_id)
     if not game:
-        # Just show default profile if no game
-        return await message.edit_text("👤 Profile:\n(No active game)", reply_markup=back_to_main_menu())
+        # 🔁 Fallback: No active game
+        text = "👤 Profile:\n(No active game)"
+        buttons = [[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]
+        return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
-    # Continue with real profile if game exists
+    # 🔍 Search for player in the game
     for player in game.get("players", []):
         if player.get("id") == user_id:
             text = f"👤 Profile of {player['name']}"
@@ -659,9 +661,13 @@ async def show_profile(client, message):
             ]
             return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
-    return await message.edit_text("❌ Player not found.", reply_markup=back_to_main_menu())
+    # ❌ Player not found in game
+    text = "❌ Player not found."
+    buttons = [[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]
+    return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
 
+# 🔁 Callback to go back to profile from inventory
 @bot.on_callback_query(filters.regex(r"^profile_back:(-?\d+):(\d+)$"))
 async def back_to_profile(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
@@ -672,10 +678,11 @@ async def back_to_profile(client: Client, callback_query: CallbackQuery):
             if player.get("id") == user_id:
                 return await show_profile(client, callback_query.message)
 
-    # Fallback dummy profile
+    # ⛔ Fallback if game/player not found
     text = "👤 Profile:\n(No active game)"
     buttons = [[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]
     return await callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
 
 # ✅ Use shield (1-time defense)
 @bot.on_callback_query(filters.regex(r"^use_shield:(-?\d+):(\d+)$"))
