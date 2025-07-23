@@ -612,69 +612,132 @@ async def handle_buy_buttons(client: Client, callback_query: CallbackQuery):
         return await callback_query.answer("❌ You are not part of this game.", show_alert=True)
 
     
-
-# /myxp
-@bot.on_message(filters.command("myxp"))
-async def show_xp(client, message: Message):
+# ===============================
+# /profile Command
+# ===============================
+@bot.on_message(filters.command("profile"))
+async def show_profile(client, message: Message):
     user_id = message.from_user.id
-    found = False
+    chat_id = message.chat.id
 
     for game_chat_id, game in games.items():
-        for player_id, player in game["players"].items():
-            if player.get("id") == user_id:
-                xp = player.get("xp", 0)
-                coins = player.get("coins", 0)
-                level = player.get("level", 1)
-
-                await message.reply(
-                    f"📊 <b>Your XP Stats</b>\n\n"
-                    f"⭐ XP: <b>{xp}</b>\n"
-                    f"💰 Coins: <b>{coins}</b>\n"
-                    f"⬆️ Level: <b>{level}</b>",
-                    parse_mode="html"
-                )
-                found = True
-                break
-        if found:
-            break
-
-    if not found:
-        await message.reply("❌ You are not in an active game.")
-
-
-# /mystats
-@bot.on_message(filters.command("mystats"))
-async def mystats(client, message: Message):
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
-
-    for game in games.values():
         for player in game["players"]:
             if player.get("id") == user_id:
-                team = player.get("team", "Unknown")
-                role = player.get("type", "Unknown")
-                xp = player.get("xp", 0)
                 coins = player.get("coins", 0)
+                xp = player.get("xp", 0)
                 level = player.get("level", 1)
-                alive = "🟢 Alive" if player.get("alive", True) else "🔴 Defeated"
-                power_used = "✅ Used" if player.get("power_used") else "❌ Not Used"
-                power_name = powers.get(role, "Unknown")
+                role = player.get("role", "🧍 Player")
+                power = level * 10 + xp
 
-                return await message.reply(
-                    f"📊 <b>Your Game Stats</b>\n\n"
-                    f"🙍 Name: <b>{user_name}</b>\n"
-                    f"🏷️ Role: <b>{role}</b>\n"
-                    f"🛡️ Team: <b>{team}</b>\n"
-                    f"🎮 Status: {alive}\n"
-                    f"🪄 Power: <b>{power_name}</b>\n"
-                    f"🔋 Power Used: {power_used}\n"
+                text = (
+                    f"👤 <b>Your Profile</b>\n"
+                    f"🪪 Name: <b>{message.from_user.first_name}</b>\n"
+                    f"🪙 Coins: <b>{coins}</b>\n"
                     f"⭐ XP: <b>{xp}</b>\n"
-                    f"💰 Coins: <b>{coins}</b>\n"
-                    f"⬆️ Level: <b>{level}</b>",
-                    parse_mode="html"
+                    f"⬆️ Level: <b>{level}</b>\n"
+                    f"⚡ Power Level: <b>{power}</b>\n"
+                    f"🎭 Role: <b>{role}</b>"
                 )
 
-    await message.reply("⚠️ You are not in any ongoing game.")
+                buttons = [
+                    [InlineKeyboardButton("🎒 View Inventory", callback_data=f"inventory:{game_chat_id}")]
+                ]
+                return await message.reply(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
+
+    await message.reply("❌ You are not part of an active game.")
+
+
+# ===============================
+# Inventory Button Handler
+# ===============================
+@bot.on_callback_query()
+async def handle_inventory_button(client, callback_query):
+    data = callback_query.data  # Example: inventory:CHAT_ID
+    user_id = callback_query.from_user.id
+
+    if data.startswith("inventory:"):
+        _, game_chat_id = data.split(":")
+        game = games.get(int(game_chat_id))
+
+        if not game:
+            return await callback_query.answer("⚠️ Game not found.", show_alert=True)
+
+        for player in game["players"]:
+            if player.get("id") == user_id:
+                inventory = player.get("inventory", {})
+                text = (
+                    "🎒 <b>Your Inventory</b>\n\n"
+                    f"🛡 Shield: <b>{inventory.get('shield', 0)}</b>\n"
+                    f"📜 Scroll: <b>{inventory.get('scroll', 0)}</b>\n"
+                    f"⚖ Extra Vote: <b>{inventory.get('vote', 0)}</b>"
+                )
+                return await callback_query.message.reply(text, parse_mode=ParseMode.HTML)
+
+        await callback_query.answer("❌ You are not part of the game.", show_alert=True)
+
+
+# ===============================
+# /inventory command (manual)
+# ===============================
+@bot.on_message(filters.command("inventory"))
+async def inventory_command(client, message: Message):
+    user_id = message.from_user.id
+
+    for game_chat_id, game in games.items():
+        for player in game["players"]:
+            if player.get("id") == user_id:
+                inventory = player.get("inventory", {})
+                text = (
+                    "🎒 <b>Your Inventory</b>\n\n"
+                    f"🛡 Shield: <b>{inventory.get('shield', 0)}</b>\n"
+                    f"📜 Scroll: <b>{inventory.get('scroll', 0)}</b>\n"
+                    f"⚖ Extra Vote: <b>{inventory.get('vote', 0)}</b>"
+                )
+                return await message.reply(text, parse_mode=ParseMode.HTML)
+
+    await message.reply("❌ You are not part of an active game.")
+
+
+# ===============================
+# /use shield and /use scroll
+# ===============================
+@bot.on_message(filters.command(["use"]))
+async def use_item(client, message: Message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    args = message.text.split()
+    
+    if len(args) < 2:
+        return await message.reply("⚠️ Usage: /use shield or /use scroll")
+
+    item = args[1].lower()
+    valid_items = ["shield", "scroll"]
+
+    if item not in valid_items:
+        return await message.reply("❌ Invalid item. Use /use shield or /use scroll")
+
+    for game_chat_id, game in games.items():
+        for player in game["players"]:
+            if player.get("id") == user_id:
+                inventory = player.setdefault("inventory", {})
+                count = inventory.get(item, 0)
+
+                if count <= 0:
+                    return await message.reply(f"❌ You don't have any {item.title()} left.")
+
+                # Apply item effect
+                if item == "shield":
+                    player["shield_active"] = True
+                elif item == "scroll":
+                    player["scroll_active"] = True
+
+                # Deduct item
+                inventory[item] -= 1
+
+                return await message.reply(f"✅ You have used a {item.title()}!")
+
+    await message.reply("❌ You are not part of an active game.")
+
 
 
 
