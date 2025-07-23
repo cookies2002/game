@@ -661,7 +661,7 @@ async def inventory_command(client, message: Message):
                     f"📜 Scroll: <b>{inventory.get('scroll', 0)}</b>\n"
                     f"⚖ Extra Vote: <b>{inventory.get('vote', 0)}</b>"
                 )
-                return await message.reply(text, parse_mode=ParseMode.HTML")
+                return await message.reply(text, parse_mode=ParseMode.HTML,)
 
     await message.reply("❌ You are not part of an active game.")
 
