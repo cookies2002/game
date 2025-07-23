@@ -639,12 +639,22 @@ async def show_profile(client, message: Message):
                 )
 
                 buttons = [
-                    [InlineKeyboardButton("🎒 View Inventory", callback_data=f"inventory:{game_chat_id}")]
+                    [InlineKeyboardButton("🎒 View Inventory", callback_data=f"inventory:{game_chat_id}")],
+                    [
+                        InlineKeyboardButton("🛡 Use Shield", callback_data=f"use:shield"),
+                        InlineKeyboardButton("📜 Use Scroll", callback_data=f"use:scroll"),
+                        InlineKeyboardButton("⚖ Use Vote", callback_data=f"use:vote")
+                    ]
                 ]
 
-                return await message.reply(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
+                return await message.reply(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
 
     await message.reply("❌ You are not part of an active game.")
+
 
 
 @bot.on_message(filters.command("inventory"))
@@ -661,29 +671,29 @@ async def inventory_command(client, message: Message):
                     f"📜 Scroll: <b>{inventory.get('scroll', 0)}</b>\n"
                     f"⚖ Extra Vote: <b>{inventory.get('vote', 0)}</b>"
                 )
-                return await message.reply(text, parse_mode=ParseMode.HTML,)
+                buttons = [
+                    [
+                        InlineKeyboardButton("🛡 Use Shield", callback_data="use:shield"),
+                        InlineKeyboardButton("📜 Use Scroll", callback_data="use:scroll"),
+                        InlineKeyboardButton("⚖ Use Vote", callback_data="use:vote")
+                    ]
+                ]
+                return await message.reply(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
 
     await message.reply("❌ You are not part of an active game.")
 
 
-@bot.on_message(filters.command("use"))
-async def use_item(client, message: Message):
-    user_id = message.from_user.id
-    args = message.text.split()
-
-    if len(args) < 2:
-        return await message.reply("⚠️ Usage: /use shield or /use scroll or /use vote")
-
-    item = args[1].lower()
-    if item not in ["shield", "scroll", "vote"]:
-        return await message.reply("❌ Invalid item. Use /use shield, scroll or vote")
+@bot.on_callback_query(filters.regex(r"^use:(shield|scroll|vote)$"))
+async def use_item_callback(client, callback_query):
+    item = callback_query.data.split(":")[1]
+    user_id = callback_query.from_user.id
 
     for game_chat_id, game in games.items():
         for player in game["players"]:
             if player.get("id") == user_id:
                 inventory = player.setdefault("inventory", {})
                 if inventory.get(item, 0) <= 0:
-                    return await message.reply(f"❌ You don't have any {item.title()} left.")
+                    return await callback_query.answer(f"No {item.title()} left!", show_alert=True)
 
                 inventory[item] -= 1
                 if item == "shield":
@@ -693,9 +703,10 @@ async def use_item(client, message: Message):
                 elif item == "vote":
                     player["extra_vote"] = True
 
-                return await message.reply(f"✅ You have used a {item.title()}!")
+                return await callback_query.answer(f"{item.title()} used successfully!", show_alert=True)
 
-    await message.reply("❌ You are not part of an active game.")
+    await callback_query.answer("You're not in a game.", show_alert=True)
+
 
 # /stats
 @bot.on_message(filters.command("stats"))
