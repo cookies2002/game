@@ -615,115 +615,107 @@ async def handle_callbacks(client, callback_query: CallbackQuery):
         return await callback_query.answer("❌ You are not part of this game.", show_alert=True)
 
 
-@bot.on_message(filters.command("profile") & filters.private)
-async def profile_handler(client, message):
-    chat_id = message.chat.id
+# ✅ PROFILE COMMAND
+@app.on_message(filters.command("profile"))
+async def show_profile(client: Client, message: Message):
     user_id = message.from_user.id
-    game = games.setdefault(chat_id, {"players": []})
 
-    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    for game_chat_id, game in games.items():
+        for player in game["players"]:
+            if player.get("id") == user_id:
+                coins = player.get("coins", 0)
+                xp = player.get("xp", 0)
+                level = player.get("level", 1)
+                role = player.get("role", "🧍 Player")
+                shield = player.get("shield", 0)
+                scroll = player.get("scroll", 0)
+                power = level * 10 + xp
 
-    if not player:
-        player = {
-            "id": user_id,
-            "coins": 0,
-            "xp": 0,
-            "level": 1,
-            "role": "🔰 Newbie",
-            "inventory": {
-                "shield": 0,
-                "scroll": 0,
-                "vote": 0
-            },
-            "shield_active": False,
-            "scroll_active": False,
-            "extra_vote": False
-        }
-        game["players"].append(player)
+                text = (
+                    f"👤 <b>Your Profile</b>\n"
+                    f"🪪 Name: <b>{message.from_user.first_name}</b>\n"
+                    f"🪙 Coins: <b>{coins}</b>\n"
+                    f"⭐ XP: <b>{xp}</b>\n"
+                    f"⬆️ Level: <b>{level}</b>\n"
+                    f"⚡ Power Level: <b>{power}</b>\n"
+                    f"🎭 Role: <b>{role}</b>\n"
+                    f"🛡 Shield: <b>{shield}</b>\n"
+                    f"📜 Scroll: <b>{scroll}</b>"
+                )
 
-    inventory = player.get("inventory", {})
-    text = (
-        f"👤 Profile:\n"
-        f"🏅 Level: {player['level']}\n"
-        f"🎭 Role: {player['role']}\n"
-        f"🪙 Coins: {player['coins']}\n"
-        f"⭐ XP: {player['xp']}\n\n"
-        f"🎒 Inventory:\n"
-        f"🛡 Shield: {inventory.get('shield', 0)}\n"
-        f"📜 Scroll: {inventory.get('scroll', 0)}\n"
-        f"⚖️ Vote: {inventory.get('vote', 0)}"
-    )
+                buttons = [
+                    [InlineKeyboardButton("🎒 View Inventory", callback_data=f"inventory:{game_chat_id}:{user_id}")],
+                    [InlineKeyboardButton("🛡 Use Shield", callback_data=f"use_shield:{game_chat_id}:{user_id}")],
+                    [InlineKeyboardButton("📜 Use Scroll", callback_data=f"use_scroll:{game_chat_id}:{user_id}")]
+                ]
 
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Use 🛡 Shield", callback_data="use:shield")],
-        [InlineKeyboardButton("Use 📜 Scroll", callback_data="use:scroll")],
-        [InlineKeyboardButton("Use ⚖️ Vote", callback_data="use:vote")]
-    ])
+                return await message.reply(
+                    text,
+                    parse_mode="html",
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
 
-    await message.reply(text, reply_markup=keyboard)
+    await message.reply("❌ You are not part of an active game.")
 
 
-@bot.on_message(filters.command("inventory") & filters.private)
-async def inventory_handler(client, message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    game = games.setdefault(chat_id, {"players": []})
+# ✅ INVENTORY BUTTON
+@app.on_callback_query(filters.regex(r"inventory:(-?\d+):(\d+)"))
+async def inventory_callback(client: Client, callback_query: CallbackQuery):
+    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
+    game = games.get(chat_id)
+    if not game:
+        return await callback_query.answer("❌ Game not found", show_alert=True)
 
-    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    for player in game["players"]:
+        if player.get("id") == user_id:
+            shield = player.get("shield", 0)
+            scroll = player.get("scroll", 0)
+            inventory_text = (
+                f"🎒 <b>Inventory</b>\n"
+                f"🛡 Shield: <b>{shield}</b>\n"
+                f"📜 Scroll: <b>{scroll}</b>"
+            )
+            return await callback_query.answer(inventory_text, show_alert=True)
 
-    if not player:
-        await message.reply("You have no inventory yet. Use /profile to create one.")
-        return
-
-    inventory = player.get("inventory", {})
-    text = (
-        f"🎒 Inventory:\n"
-        f"🛡 Shield: {inventory.get('shield', 0)}\n"
-        f"📜 Scroll: {inventory.get('scroll', 0)}\n"
-        f"⚖️ Vote: {inventory.get('vote', 0)}"
-    )
-
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Use 🛡 Shield", callback_data="use:shield")],
-        [InlineKeyboardButton("Use 📜 Scroll", callback_data="use:scroll")],
-        [InlineKeyboardButton("Use ⚖️ Vote", callback_data="use:vote")]
-    ])
-
-    await message.reply(text, reply_markup=keyboard)
+    await callback_query.answer("❌ Player not found", show_alert=True)
 
 
-@bot.on_callback_query(filters.regex(r"use:(shield|scroll|vote)"))
-async def use_item(client, callback_query):
-    item = callback_query.data.split(":")[1]
-    chat_id = callback_query.message.chat.id
-    user_id = callback_query.from_user.id
-    game = games.get(chat_id, {"players": []})
+# ✅ USE SHIELD BUTTON
+@app.on_callback_query(filters.regex(r"use_shield:(-?\d+):(\d+)"))
+async def shield_callback(client: Client, callback_query: CallbackQuery):
+    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
+    game = games.get(chat_id)
+    if not game:
+        return await callback_query.answer("❌ Game not found", show_alert=True)
 
-    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    for player in game["players"]:
+        if player.get("id") == user_id:
+            if player.get("shield", 0) > 0:
+                player["shield"] -= 1
+                return await callback_query.answer("🛡 Shield activated!", show_alert=True)
+            else:
+                return await callback_query.answer("⚠️ No shields left!", show_alert=True)
 
-    if not player:
-        await callback_query.answer("You are not in the game.", show_alert=True)
-        return
+    await callback_query.answer("❌ Player not found", show_alert=True)
 
-    inventory = player.setdefault("inventory", {})
-    if inventory.get(item, 0) <= 0:
-        await callback_query.answer(f"You don't have any {item.title()}!", show_alert=True)
-        return
 
-    inventory[item] -= 1
+# ✅ USE SCROLL BUTTON
+@app.on_callback_query(filters.regex(r"use_scroll:(-?\d+):(\d+)"))
+async def scroll_callback(client: Client, callback_query: CallbackQuery):
+    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
+    game = games.get(chat_id)
+    if not game:
+        return await callback_query.answer("❌ Game not found", show_alert=True)
 
-    if item == "shield":
-        player["shield_active"] = True
-    elif item == "scroll":
-        player["scroll_active"] = True
-    elif item == "vote":
-        player["extra_vote"] = True
+    for player in game["players"]:
+        if player.get("id") == user_id:
+            if player.get("scroll", 0) > 0:
+                player["scroll"] -= 1
+                return await callback_query.answer("📜 Scroll used successfully!", show_alert=True)
+            else:
+                return await callback_query.answer("⚠️ No scrolls left!", show_alert=True)
 
-    emojis = {"shield": "🛡", "scroll": "📜", "vote": "⚖️"}
-    await callback_query.answer(f"{emojis[item]} {item.title()} used successfully!", show_alert=True)
-
-    # Optional: Edit the message to remove buttons after use
-    await callback_query.message.edit_reply_markup(reply_markup=None)
+    await callback_query.answer("❌ Player not found", show_alert=True)
 
 
 
