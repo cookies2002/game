@@ -557,6 +557,7 @@ async def check_game_end(client, chat_id):
 
     # Game continues
 
+
 @bot.on_message(filters.command("join_fairy") & filters.group)
 async def join_fairy_team(client, message: Message):
     chat_id = message.chat.id
@@ -573,7 +574,10 @@ async def join_fairy_team(client, message: Message):
     for player in game["players"]:
         if player["id"] == user_id:
             player["joined_team"] = "Fairy"
-            await message.reply(f"🧚 You have joined the <b>Fairy Team</b>!", parse_mode="HTML")
+            await message.reply(
+                "🧚 You have joined the <b>Fairy Team</b>!",
+                parse_mode=ParseMode.HTML  # ✅ Use correct enum here
+            )
             return
 
     await message.reply("❌ You haven't joined the game yet. Use /join to enter first.")
