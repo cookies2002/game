@@ -14,7 +14,7 @@ API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URL = os.getenv("MONGO_URL")
 
-bot = Client("fairy_vs_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+bot = Client("fairy_vs_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 mongo = MongoClient(MONGO_URL)
 db = mongo.fairy_game
 
@@ -604,7 +604,7 @@ async def show_profile(client: Client, message: Message):
 
                 return await message.reply(
                     text,
-                    parse_mode="HTML",
+                    parse_mode=ParseMode.HTML,
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
 
