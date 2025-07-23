@@ -6,6 +6,7 @@ from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineK
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pyrogram.enums import ParseMode
+from profile import *  # ✅ Registers all handlers from profile.py
 
 load_dotenv()
 
@@ -671,113 +672,6 @@ async def handle_callbacks(client, callback_query: CallbackQuery):
                 return await callback_query.answer(f"✅ Bought {item.capitalize()}!", show_alert=True)
 
         return await callback_query.answer("❌ You are not part of this game.", show_alert=True)
-
-
-
-# ✅ PROFILE COMMAND
-@bot.on_message(filters.command("profile"))
-async def show_profile(client: Client, message: Message):
-    user_id = message.from_user.id
-
-    for game_chat_id, game in games.items():
-        for player in game["players"]:
-            if player.get("id") == user_id:
-                coins = player.get("coins", 0)
-                xp = player.get("xp", 0)
-                level = player.get("level", 1)
-                role = player.get("role", "🧍 Player")
-                shield = player.get("shield", 0)
-                scroll = player.get("scroll", 0)
-                power = level * 10 + xp
-
-                text = (
-                    f"👤 <b>Your Profile</b>\n"
-                    f"🪪 Name: <b>{message.from_user.first_name}</b>\n"
-                    f"🪙 Coins: <b>{coins}</b>\n"
-                    f"⭐ XP: <b>{xp}</b>\n"
-                    f"⬆️ Level: <b>{level}</b>\n"
-                    f"⚡ Power Level: <b>{power}</b>\n"
-                    f"🎭 Role: <b>{role}</b>\n"
-                    f"🛡 Shield: <b>{shield}</b>\n"
-                    f"📜 Scroll: <b>{scroll}</b>"
-                )
-
-                buttons = [
-                    [InlineKeyboardButton("🎒 View Inventory", callback_data=f"inventory:{game_chat_id}:{user_id}")],
-                    [InlineKeyboardButton("🛡 Use Shield", callback_data=f"use_shield:{game_chat_id}:{user_id}")],
-                    [InlineKeyboardButton("📜 Use Scroll", callback_data=f"use_scroll:{game_chat_id}:{user_id}")]
-                ]
-
-                return await message.reply(
-                    text,
-                    parse_mode=ParseMode.HTML,  # ✅ fixed here
-                    reply_markup=InlineKeyboardMarkup(buttons)
-                )
-
-    await message.reply("❌ You are not part of an active game.")
-
-# ✅ INVENTORY BUTTON
-@bot.on_callback_query(filters.regex(r"^inventory:(-?\d+):(\d+)$"))
-async def inventory_callback(client: Client, callback_query: CallbackQuery):
-    chat_id_str, user_id_str = callback_query.data.split(":")[1:]
-    chat_id = int(chat_id_str)
-    user_id = int(user_id_str)
-
-    game = games.get(chat_id)
-    if not game:
-        return await callback_query.answer("❌ Game not found", show_alert=True)
-
-    for player in game["players"]:
-        if player.get("id") == user_id:
-            shield = player.get("shield", 0)
-            scroll = player.get("scroll", 0)
-            inventory_text = (
-                f"🎒 <b>Your Inventory</b>\n"
-                f"🛡 Shield: <b>{shield}</b>\n"
-                f"📜 Scroll: <b>{scroll}</b>"
-            )
-            return await callback_query.message.reply(inventory_text, parse_mode="html")  # ✅ fixed here
-
-    await callback_query.answer("❌ Player not found", show_alert=True)
-
-# ✅ USE SHIELD BUTTON (with power effect)
-@bot.on_callback_query(filters.regex(r"use_shield:(-?\d+):(\d+)"))
-async def shield_callback(client: Client, callback_query: CallbackQuery):
-    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
-    game = games.get(chat_id)
-    if not game:
-        return await callback_query.answer("❌ Game not found", show_alert=True)
-
-    for player in game["players"]:
-        if player.get("id") == user_id:
-            if player.get("shield", 0) > 0:
-                player["shield"] -= 1
-                player["shield_active"] = True  # Activate protection
-                return await callback_query.answer("🛡 Shield activated! You'll block the next vote.", show_alert=True)
-            else:
-                return await callback_query.answer("⚠️ No shields left!", show_alert=True)
-
-    await callback_query.answer("❌ Player not found", show_alert=True)
-
-
-# ✅ USE SCROLL BUTTON (with power effect)
-@bot.on_callback_query(filters.regex(r"use_scroll:(-?\d+):(\d+)"))
-async def scroll_callback(client: Client, callback_query: CallbackQuery):
-    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
-    game = games.get(chat_id)
-    if not game:
-        return await callback_query.answer("❌ Game not found", show_alert=True)
-
-    for player in game["players"]:
-        if player.get("id") == user_id:
-            if player.get("scroll", 0) > 0:
-                player["scroll"] -= 1
-                player["scroll_active"] = True  # Activate vote boost
-                return await callback_query.answer("📜 Scroll used! Your next vote will be doubled.", show_alert=True)
-            else:
-                return await callback_query.answer("⚠️ No scrolls left!", show_alert=True)
-
-    await callback_query.answer("❌ Player not found", show_alert=True)
 
 
 # /stats
