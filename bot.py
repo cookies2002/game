@@ -853,7 +853,6 @@ async def buy_menu(client, message: Message):
     )
     await message.reply(text, parse_mode=ParseMode.HTML)
 
-# Handle payment screenshot
 @bot.on_message(filters.private & filters.photo)
 async def handle_payment_screenshot(client, message: Message):
     user = message.from_user
@@ -864,11 +863,18 @@ async def handle_payment_screenshot(client, message: Message):
         f"📷 Screenshot below."
     )
     try:
-        await message.copy(chat_id=ADMIN_ID, caption=caption, parse_mode="HTML")
+        await client.copy_message(
+            chat_id=ADMIN_ID,
+            from_chat_id=message.chat.id,
+            message_id=message.id,
+            caption=caption,
+            parse_mode=ParseMode.HTML
+        )
         await message.reply("✅ Screenshot sent to admin. Please wait for approval.")
     except Exception as e:
         await message.reply("❌ Failed to send screenshot to admin.")
         print(e)
+
 
 # /allow command for admin
 @bot.on_message(filters.command("allow") & filters.user(ADMIN_ID))
