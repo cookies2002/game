@@ -710,7 +710,7 @@ async def show_profile(client: Client, message: Message):
 
                 return await message.reply(
                     text,
-                    parse_mode="HTML",  # ✅ fixed here
+                    parse_mode=ParseMode.HTML  # ✅ fixed here
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
 
