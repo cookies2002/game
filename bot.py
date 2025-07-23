@@ -640,6 +640,10 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
 
 
 # # ✅ Show user profile (with fallback if not in game)
+@bot.on_callback_query(filters.regex(r"^show_profile$"))
+async def show_profile_callback(client: Client, callback_query: CallbackQuery):
+    await show_profile(client, callback_query.message)
+    
 async def show_profile(client, message):
     chat_id = message.chat.id
     user_id = message.from_user.id if message.from_user else None
@@ -690,9 +694,10 @@ async def main_menu_callback(client, callback_query):
         "🏠 Main Menu",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("▶️ Start Game", callback_data="start_game")],
-            [InlineKeyboardButton("👤 Profile", callback_data="profile")]
+            [InlineKeyboardButton("👤 Profile", callback_data="show_profile")],  # <-- fixed here
         ])
     )
+
     
 
 # ✅ Use shield (1-time defense)
