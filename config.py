@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from pyrogram import Client  # ✅ THIS LINE IS MISSING
+
 
 # Load variables from .env file
 load_dotenv()
@@ -17,4 +17,4 @@ API_HASH = os.getenv("API_HASH", "your-api-hash")
 MIN_PLAYERS = int(os.getenv("MIN_PLAYERS", 4))
 MAX_PLAYERS = int(os.getenv("MAX_PLAYERS", 10))
 
-bot = Client("fairy_vs_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
