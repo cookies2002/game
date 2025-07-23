@@ -524,12 +524,6 @@ async def upgrade_power(client, message: Message):
     await message.reply("⚙️ Upgrade coming soon. Use coins to boost powers!")
 
 # /shop
-from pyrogram import Client, filters
-from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-
-# Assume games is a global dictionary
-games = {}  # This must be populated elsewhere with structure: {chat_id: {"players": {user_id: {...}}}}
-
 # /shop command
 @bot.on_message(filters.command("shop"))
 async def open_shop(client, message: Message):
@@ -564,7 +558,7 @@ async def open_shop(client, message: Message):
                     ]
                 ]
 
-                return await message.reply(text, parse_mode="html", reply_markup=InlineKeyboardMarkup(buttons))
+                return await message.reply(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(buttons))
 
     await message.reply("❌ You are not part of an active game.")
 
