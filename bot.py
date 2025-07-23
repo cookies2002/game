@@ -391,7 +391,6 @@ def vote_command(client, message):
     if not voter or not voter.get("alive"):
         return message.reply("💀 Only alive players can vote.")
 
-    # Only allow vote via reply
     if not message.reply_to_message or not message.reply_to_message.from_user:
         return message.reply("📩 Reply to a player's message to vote for them.")
 
@@ -401,58 +400,61 @@ def vote_command(client, message):
     if not players[target_id].get("alive"):
         return message.reply("☠️ You can't vote for a dead player.")
 
-    # Prevent duplicate votes
     if voter_id in game.get("votes", {}):
         return message.reply("🗳 You've already voted!")
 
-    # Role-specific rules
+    vote_weight = 1
+
+    # Shadow role has 0 vote weight
+    if voter["role"] == "shadow":
+        vote_weight = 0
+
+    # Village Elder double vote
+    if voter["role"] == "village_elder" and voter.get("double_vote"):
+        vote_weight += 1
+
+    # Ghost one-time vote
     if voter["role"] == "ghost":
         if not voter.get("ghost_vote", True):
             return message.reply("👻 You already used your one-time ghost vote.")
         voter["ghost_vote"] = False
 
-    vote_weight = 1
-
-    if voter["role"] == "shadow":
-        vote_weight = 0  # Shadow votes have no weight
-    elif voter["role"] == "village_elder" and voter.get("double_vote", False):
-        vote_weight = 2
-
-    # Extra Vote item logic 🗳️🎁
+    # Inventory extra vote logic
     inventory = voter.get("inventory", {})
     if inventory.get("vote", 0) > 0:
         vote_weight += 1
         inventory["vote"] -= 1
         voter["inventory"] = inventory
 
-    # Store the vote
-    if "votes" not in game:
-        game["votes"] = {}
-
+    # Store vote
+    game.setdefault("votes", {})
     game["votes"][voter_id] = {
         "target": target_id,
         "weight": vote_weight
     }
 
-    # Build vote message
-    target_name = (players[target_id].get("username") or players[target_id].get("name") or "Unknown").replace("@", "")
-    message.reply(f"🗳 Vote registered for **{target_name}**!")
+    target_name = players[target_id].get("username") or players[target_id].get("name") or "Unknown"
+    message.reply(f"🗳 Your vote has been registered for **{target_name.replace('@','')}**.")
 
-    # Check for majority
+    # Count total votes
     vote_counts = {}
     for vote in game["votes"].values():
         target = vote["target"]
         vote_counts[target] = vote_counts.get(target, 0) + vote["weight"]
 
-    majority = (sum(1 for p in players.values() if p.get("alive")) // 2) + 1
+    # Majority = (alive // 2) + 1
+    alive_players = [p for p in players.values() if p.get("alive")]
+    majority = (len(alive_players) // 2) + 1
+
     for target, count in vote_counts.items():
         if count >= majority:
             players[target]["alive"] = False
-            killed_name = (players[target].get("username") or players[target].get("name") or "Unknown").replace("@", "")
-            client.send_message(chat_id, f"☠️ **{killed_name}** was eliminated by majority vote!")
+            killed_name = players[target].get("username") or players[target].get("name") or "Unknown"
+            client.send_message(chat_id, f"☠️ **{killed_name.replace('@','')}** was eliminated by majority vote!")
             game["votes"] = {}
             check_game_end(client, chat_id)
             break
+
 
 
 async def check_game_end(client, message, game):
@@ -508,7 +510,8 @@ async def upgrade_power(client, message: Message):
 
 
 # /shop command
-@Client.on_message(filters.command("shop"))
+# Assuming bot is your Pyrogram client
+@bot.on_message(filters.command("shop"))
 async def open_shop(client, message: Message):
     user_id = message.from_user.id
     chat_id = message.chat.id
@@ -552,8 +555,8 @@ async def open_shop(client, message: Message):
 
     await message.reply("❌ You are not part of the game.")
 
-# Callback handler
-@Client.on_callback_query()
+
+@bot.on_callback_query()
 async def handle_callbacks(client, callback_query: CallbackQuery):
     data = callback_query.data
     user_id = callback_query.from_user.id
@@ -611,8 +614,8 @@ async def handle_callbacks(client, callback_query: CallbackQuery):
 
         return await callback_query.answer("❌ You are not part of this game.", show_alert=True)
 
-# /profile command
-@Client.on_message(filters.command("profile"))
+
+@bot.on_message(filters.command("profile"))
 async def show_profile(client, message: Message):
     user_id = message.from_user.id
 
@@ -643,8 +646,8 @@ async def show_profile(client, message: Message):
 
     await message.reply("❌ You are not part of an active game.")
 
-# /inventory command
-@Client.on_message(filters.command("inventory"))
+
+@bot.on_message(filters.command("inventory"))
 async def inventory_command(client, message: Message):
     user_id = message.from_user.id
 
@@ -662,8 +665,8 @@ async def inventory_command(client, message: Message):
 
     await message.reply("❌ You are not part of an active game.")
 
-# /use command
-@Client.on_message(filters.command("use"))
+
+@bot.on_message(filters.command("use"))
 async def use_item(client, message: Message):
     user_id = message.from_user.id
     args = message.text.split()
@@ -693,7 +696,6 @@ async def use_item(client, message: Message):
                 return await message.reply(f"✅ You have used a {item.title()}!")
 
     await message.reply("❌ You are not part of an active game.")
-
 
 # /stats
 @bot.on_message(filters.command("stats"))
