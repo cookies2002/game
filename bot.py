@@ -549,7 +549,7 @@ async def open_shop(client, message: Message):
 
             return await message.reply(
                 text,
-                parse_mode="HTML",
+                parse_mode=ParseMode.HTML",
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
 
@@ -642,7 +642,7 @@ async def show_profile(client, message: Message):
                     [InlineKeyboardButton("🎒 View Inventory", callback_data=f"inventory:{game_chat_id}")]
                 ]
 
-                return await message.reply(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(buttons))
+                return await message.reply(text, parse_mode=ParseMode.HTML", reply_markup=InlineKeyboardMarkup(buttons))
 
     await message.reply("❌ You are not part of an active game.")
 
@@ -661,7 +661,7 @@ async def inventory_command(client, message: Message):
                     f"📜 Scroll: <b>{inventory.get('scroll', 0)}</b>\n"
                     f"⚖ Extra Vote: <b>{inventory.get('vote', 0)}</b>"
                 )
-                return await message.reply(text, parse_mode="HTML")
+                return await message.reply(text, parse_mode=ParseMode.HTML")
 
     await message.reply("❌ You are not part of an active game.")
 
