@@ -5,7 +5,7 @@ from bot import games  # Global memory for game state
 
 
 # ✅ Show profile
-@Client.on_message(filters.command("profile"))
+@bot.on_message(filters.command("profile"))
 async def show_profile(client: Client, message: Message):
     user_id = message.from_user.id
 
@@ -55,7 +55,7 @@ async def show_profile(client: Client, message: Message):
 
 
 # ✅ View inventory
-@Client.on_callback_query(filters.regex(r"^inventory:(-?\d+):(\d+)$"))
+@bot.on_callback_query(filters.regex(r"^inventory:(-?\d+):(\d+)$"))
 async def inventory_callback(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
     game = games.get(chat_id)
@@ -82,7 +82,7 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
 
 
 # ✅ Back to profile from inventory
-@Client.on_callback_query(filters.regex(r"^profile_back:(-?\d+):(\d+)$"))
+@bot.on_callback_query(filters.regex(r"^profile_back:(-?\d+):(\d+)$"))
 async def back_to_profile(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
     for player in games.get(chat_id, {}).get("players", []):
@@ -93,7 +93,7 @@ async def back_to_profile(client: Client, callback_query: CallbackQuery):
 
 
 # ✅ Use shield (1-time defense)
-@Client.on_callback_query(filters.regex(r"use_shield:(-?\d+):(\d+)"))
+@bot.on_callback_query(filters.regex(r"use_shield:(-?\d+):(\d+)"))
 async def use_shield(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
     if callback_query.from_user.id != user_id:
@@ -116,7 +116,7 @@ async def use_shield(client: Client, callback_query: CallbackQuery):
 
 
 # ✅ Use scroll (1-time double vote)
-@Client.on_callback_query(filters.regex(r"use_scroll:(-?\d+):(\d+)"))
+@bot.on_callback_query(filters.regex(r"use_scroll:(-?\d+):(\d+)"))
 async def use_scroll(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
     if callback_query.from_user.id != user_id:
