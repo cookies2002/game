@@ -549,7 +549,7 @@ async def open_shop(client, message: Message):
 
             return await message.reply(
                 text,
-                parse_mode=ParseMode.HTML",
+                parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
 
