@@ -614,7 +614,12 @@ async def handle_callbacks(client, callback_query: CallbackQuery):
     user_id = callback_query.from_user.id
 
     if data.startswith("inventory:"):
-        _, game_chat_id = data.split(":")
+        parts = data.split(":")
+if len(parts) >= 2:
+    _, game_chat_id = parts[0], parts[1]
+else:
+    return await callback_query.answer("Invalid data format.", show_alert=True)
+    
         game = games.get(int(game_chat_id))
 
         if not game:
