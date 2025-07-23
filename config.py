@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from pyrogram import Client  # ✅ THIS LINE IS MISSING
 
 # Load variables from .env file
 load_dotenv()
