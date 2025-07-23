@@ -710,17 +710,19 @@ async def show_profile(client: Client, message: Message):
 
                 return await message.reply(
                     text,
-                    parse_mode=ParseMode.HTML,
+                    parse_mode="html",  # ✅ fixed here
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
 
     await message.reply("❌ You are not part of an active game.")
 
-
 # ✅ INVENTORY BUTTON
-@bot.on_callback_query(filters.regex(r"inventory:(-?\d+):(\d+)"))
+@bot.on_callback_query(filters.regex(r"^inventory:(-?\d+):(\d+)$"))
 async def inventory_callback(client: Client, callback_query: CallbackQuery):
-    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
+    chat_id_str, user_id_str = callback_query.data.split(":")[1:]
+    chat_id = int(chat_id_str)
+    user_id = int(user_id_str)
+
     game = games.get(chat_id)
     if not game:
         return await callback_query.answer("❌ Game not found", show_alert=True)
@@ -730,14 +732,13 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
             shield = player.get("shield", 0)
             scroll = player.get("scroll", 0)
             inventory_text = (
-                f"🎒 <b>Inventory</b>\n"
+                f"🎒 <b>Your Inventory</b>\n"
                 f"🛡 Shield: <b>{shield}</b>\n"
                 f"📜 Scroll: <b>{scroll}</b>"
             )
-            return await callback_query.answer(inventory_text, show_alert=True)
+            return await callback_query.message.reply(inventory_text, parse_mode="html")  # ✅ fixed here
 
     await callback_query.answer("❌ Player not found", show_alert=True)
-
 
 # ✅ USE SHIELD BUTTON (with power effect)
 @bot.on_callback_query(filters.regex(r"use_shield:(-?\d+):(\d+)"))
