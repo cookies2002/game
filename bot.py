@@ -536,11 +536,9 @@ async def open_shop(client, message: Message):
     user_id = message.from_user.id
     chat_id = message.chat.id
 
-    found = False
     for game_chat_id, game in games.items():
-        for player_id, player in game["players"].items():
-            if player["id"] == user_id:
-                found = True
+        for player in game["players"]:
+            if player.get("id") == user_id:
                 coins = player.get("coins", 0)
                 xp = player.get("xp", 0)
                 level = player.get("level", 1)
@@ -566,58 +564,9 @@ async def open_shop(client, message: Message):
                     ]
                 ]
 
-                await message.reply(
-                    text,
-                    parse_mode="html",
-                    reply_markup=InlineKeyboardMarkup(buttons)
-                )
-                break
-        if found:
-            break
+                return await message.reply(text, parse_mode="html", reply_markup=InlineKeyboardMarkup(buttons))
 
-    if not found:
-        await message.reply("❌ You are not part of an active game.")
-
-# Callback handler
-@bot.on_callback_query(filters.regex(r"^buy:(\w+):(-?\d+)$"))
-async def handle_shop_purchase(client, callback_query: CallbackQuery):
-    item, chat_id = callback_query.matches[0].groups()
-    chat_id = int(chat_id)
-    user_id = callback_query.from_user.id
-
-    game = games.get(chat_id)
-    if not game:
-        return await callback_query.answer("❌ Game not found.", show_alert=True)
-
-    player = next((p for p in game["players"].values() if p["id"] == user_id), None)
-    if not player:
-        return await callback_query.answer("❌ Player not found.", show_alert=True)
-
-    coins = player.get("coins", 0)
-    item_prices = {"shield": 3, "scroll": 5, "vote": 4}
-
-    if item not in item_prices:
-        return await callback_query.answer("❌ Unknown item.", show_alert=True)
-
-    price = item_prices[item]
-    if coins < price:
-        return await callback_query.answer("💰 Not enough coins!", show_alert=True)
-
-    # Deduct coins and give item
-    player["coins"] -= price
-
-    if item == "shield":
-        player["shop_shield"] = True
-        msg = "🛡️ Shield purchased!"
-    elif item == "scroll":
-        player["shop_scroll"] = True
-        msg = "📜 Scroll purchased!"
-    elif item == "vote":
-        player["extra_vote"] = True
-        msg = "⚖️ Extra vote purchased!"
-
-    await callback_query.answer("✅ Purchase successful!", show_alert=True)
-    await client.send_message(user_id, f"{msg} You have {player['coins']} coins left.")
+    await message.reply("❌ You are not part of an active game.")
 
     
 
@@ -655,10 +604,9 @@ async def show_xp(client, message: Message):
 async def mystats(client, message: Message):
     user_id = message.from_user.id
     user_name = message.from_user.first_name
-    found = False
 
-    for game_chat_id, game in games.items():
-        for player_id, player in game["players"].items():
+    for game in games.values():
+        for player in game["players"]:
             if player.get("id") == user_id:
                 team = player.get("team", "Unknown")
                 role = player.get("type", "Unknown")
@@ -669,7 +617,7 @@ async def mystats(client, message: Message):
                 power_used = "✅ Used" if player.get("power_used") else "❌ Not Used"
                 power_name = powers.get(role, "Unknown")
 
-                await message.reply(
+                return await message.reply(
                     f"📊 <b>Your Game Stats</b>\n\n"
                     f"🙍 Name: <b>{user_name}</b>\n"
                     f"🏷️ Role: <b>{role}</b>\n"
@@ -682,16 +630,49 @@ async def mystats(client, message: Message):
                     f"⬆️ Level: <b>{level}</b>",
                     parse_mode="html"
                 )
-                found = True
-                break
-        if found:
-            break
 
-    if not found:
-        await message.reply("⚠️ You are not in any ongoing game.")
+    await message.reply("⚠️ You are not in any ongoing game.")
+
+@bot.on_callback_query(filters.regex(r"^buy:(\w+):(-?\d+)$"))
+async def handle_shop_purchase(client, callback_query: CallbackQuery):
+    item, chat_id = callback_query.matches[0].groups()
+    user_id = callback_query.from_user.id
+    chat_id = int(chat_id)
+
+    game = games.get(chat_id)
+    if not game:
+        return await callback_query.answer("❌ Game not found.", show_alert=True)
+
+    player = next((p for p in game["players"] if p.get("id") == user_id), None)
+    if not player:
+        return await callback_query.answer("❌ Player not found.", show_alert=True)
+
+    coins = player.get("coins", 0)
+    item_prices = {"shield": 3, "scroll": 5, "vote": 4}
+
+    if item not in item_prices:
+        return await callback_query.answer("❌ Unknown item.", show_alert=True)
+
+    price = item_prices[item]
+    if coins < price:
+        return await callback_query.answer("💰 Not enough coins!", show_alert=True)
+
+    player["coins"] -= price
+
+    if item == "shield":
+        player["shop_shield"] = True
+        msg = "🛡️ Shield purchased!"
+    elif item == "scroll":
+        player["shop_scroll"] = True
+        msg = "📜 Scroll purchased!"
+    elif item == "vote":
+        player["extra_vote"] = True
+        msg = "⚖️ Extra vote purchased!"
+
+    await callback_query.answer("✅ Purchase successful!", show_alert=True)
+    await client.send_message(user_id, f"{msg} You have {player['coins']} coins left.")
 
 
-    
 # /stats
 @bot.on_message(filters.command("stats"))
 async def show_stats(client, message: Message):
