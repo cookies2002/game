@@ -503,7 +503,7 @@ async def vote_player(client, message: Message):
                 for p in players:
                     p["votes"] = 0
 
-                await check_game_end(client, message, game)
+                await check_game_end(client, chat_id)
             break
 
 
