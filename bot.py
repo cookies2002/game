@@ -507,56 +507,125 @@ async def vote_player(client, message: Message):
             break
 
 
-async def check_game_end(client, message, game):
-    chat_id = message.chat.id
-    players = game["players"]
-
-    # Count alive players by team
-    fairies_alive = [p for p in players if p["alive"] and p.get("team") == "Fairy"]
-    villains_alive = [p for p in players if p["alive"] and p.get("team") == "Villain"]
-
-    # Game End Condition 1: All Fairies are dead → Villains win
-    if not fairies_alive:
-        winners = [
-            p["name"] for p in players
-            if p["alive"] and (
-                p.get("team") == "Villain" or 
-                (p.get("type") == "Commoner" and p.get("joined_team") == "Villain")
-            )
-        ]
-        await client.send_message(
-            chat_id,
-            f"💀 All Fairies are defeated!\n\n🏆 <b>Villains Win!</b>\n🎉 Winners: {', '.join(winners)}",
-            parse_mode=ParseMode.HTML
-        )
-        games.pop(chat_id, None)
+async def check_game_end(client, chat_id):
+    game = games.get(chat_id)
+    if not game or "players" not in game:
         return
 
-    # Game End Condition 2: All Villains are dead → Fairies win
-    if not villains_alive:
-        winners = [
-            p["name"] for p in players
-            if p["alie"] and (
-                p.get("team") == "Fairy" or 
-                (p.get("type") == "Commoner" and p.get("joined_team") == "Fairy")
-            )
-        ]
-        await client.send_message(
-            chat_id,
-            f"💥 All Villains are eliminated!\n\n🌟 <b>Fairies Triumph!</b>\n🎉 Winners: {', '.join(winners)}",
-            parse_mode=ParseMode.HTML
-        )
-        games.pop(chat_id, None)
-        return
+    # Remove dead players from teams
+    alive_fairies = [p for p in game["players"] if p.get("alive") and p.get("joined_team") == "Fairy"]
+    alive_villains = [p for p in game["players"] if p.get("alive") and p.get("joined_team") == "Villain"]
+
+    if not alive_fairies and alive_villains:
+        winner_text = "😈 <b>Villain Team Wins!</b>"
+    elif not alive_villains and alive_fairies:
+        winner_text = "🧚 <b>Fairy Team Wins!</b>"
+    elif not alive_fairies and not alive_villains:
+        winner_text = "☠️ <b>All players are dead. No team wins.</b>"
+    else:
+        return  # Game still going
+
+    # Game ended, announce and reset
+    await client.send_message(chat_id, winner_text, parse_mode="HTML")
+    del games[chat_id]
 
     # Game continues
 
+@bot.on_message(filters.command("join_fairy") & filters.group)
+async def join_fairy_team(client, message: Message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    username = message.from_user.username
+    name = message.from_user.first_name
+
+    game = games.get(chat_id)
+
+    if not game or not game.get("players"):
+        await message.reply("❌ No game is currently running.")
+        return
+
+    for player in game["players"]:
+        if player["id"] == user_id:
+            player["joined_team"] = "Fairy"
+            await message.reply(f"🧚 You have joined the <b>Fairy Team</b>!", parse_mode="HTML")
+            return
+
+    await message.reply("❌ You haven't joined the game yet. Use /join to enter first.")
+
+@bot.on_message(filters.command("join_villain") & filters.group)
+async def join_villain_team(client, message: Message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    username = message.from_user.username
+    name = message.from_user.first_name
+
+    game = games.get(chat_id)
+
+    if not game or not game.get("players"):
+        await message.reply("❌ No game is currently running.")
+        return
+
+    for player in game["players"]:
+        if player["id"] == user_id:
+            player["joined_team"] = "Villain"
+            await message.reply(f"😈 You have joined the <b>Villain Team</b>!", parse_mode="HTML")
+            return
+
+    await message.reply("❌ You haven't joined the game yet. Use /join to enter first.")
+    
 
 
-# /upgrade
-@bot.on_message(filters.command("upgrade"))
-async def upgrade_power(client, message: Message):
-    await message.reply("⚙️ Upgrade coming soon. Use coins to boost powers!")
+#team_status
+@bot.on_message(filters.command("team_status") & filters.group)
+async def team_status(client, message: Message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    game = games.get(chat_id)
+
+    if not game:
+        await message.reply("❌ No game is currently running.")
+        return
+
+    # Check if user is in the game
+    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    if not player:
+        await message.reply("❌ You haven't joined the game.")
+        return
+
+    fairy_team = []
+    villain_team = []
+
+    for player in game["players"]:
+        uid = player.get("id")
+        username = player.get("username")
+        name = player.get("name", "Unknown")
+        alive = player.get("alive", True)
+        team = player.get("joined_team")
+
+        # Create mention
+        if username:
+            mention = f"@{username}"
+        else:
+            mention = f"<a href='tg://user?id={uid}'>{name}</a>"
+
+        status = "✅ Alive" if alive else "☠️ Dead"
+
+        if team == "Fairy":
+            fairy_team.append(f"• {mention} - {status}")
+        elif team == "Villain":
+            villain_team.append(f"• {mention} - {status}")
+
+    fairy_text = "\n".join(fairy_team) if fairy_team else "No one joined yet."
+    villain_text = "\n".join(villain_team) if villain_team else "No one joined yet."
+
+    msg = (
+        "<b>🧚 Fairy Team Members:</b>\n" + fairy_text + "\n\n" +
+        "<b>😈 Villain Team Members:</b>\n" + villain_text
+    )
+
+    await message.reply(msg, parse_mode="HTML", disable_web_page_preview=True)
+
+
 
 
 # ✅ Show profile
