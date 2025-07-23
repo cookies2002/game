@@ -6,6 +6,7 @@ from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineK
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pyrogram.enums import ParseMode
+from config import bot
 from profile import *  # ✅ Registers all handlers from profile.py
 
 load_dotenv()
@@ -801,4 +802,5 @@ async def leave_lobby(client, message: Message):
     else:
         await message.reply("❌ No lobby to leave.")
 
+print("🚀 Bot started!")
 bot.run()
