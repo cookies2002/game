@@ -716,12 +716,14 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
         if player.get("id") == user_id:
             shield = player.get("shield", 0)
             scroll = player.get("scroll", 0)
+
             inventory_text = (
-    f"🎒 <b>Your Inventory</b>\n"
-    f"🛡 Shield: <b>{shield}</b> {'🟢 Active' if player.get('shield_active') else ''}\n"
-    f"📜 Scroll: <b>{scroll}</b> {'🟢 Active' if player.get('scroll_active') else ''}"
-)
-           return await callback_query.message.edit_text(
+                f"🎒 <b>Your Inventory</b>\n"
+                f"🛡 Shield: <b>{shield}</b> {'🟢 Active' if player.get('shield_active') else ''}\n"
+                f"📜 Scroll: <b>{scroll}</b> {'🟢 Active' if player.get('scroll_active') else ''}"
+            )
+
+            return await callback_query.message.edit_text(
                 inventory_text,
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([
