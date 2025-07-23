@@ -1,12 +1,11 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from config import bot
-
 from bot import games  # Global memory for game state
 
 
 # ✅ Show profile
-@bot.on_message(filters.command("profile"))
+@bot.on_message(filters.command("profile") & filters.private)
 async def show_profile(client: Client, message: Message):
     user_id = message.from_user.id
 
@@ -79,6 +78,7 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
                     [InlineKeyboardButton("🔙 Back", callback_data=f"profile_back:{chat_id}:{user_id}")]
                 ])
             )
+
     await callback_query.answer("❌ Player not found", show_alert=True)
 
 
@@ -94,7 +94,7 @@ async def back_to_profile(client: Client, callback_query: CallbackQuery):
 
 
 # ✅ Use shield (1-time defense)
-@bot.on_callback_query(filters.regex(r"use_shield:(-?\d+):(\d+)"))
+@bot.on_callback_query(filters.regex(r"^use_shield:(-?\d+):(\d+)$"))
 async def use_shield(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
     if callback_query.from_user.id != user_id:
@@ -117,7 +117,7 @@ async def use_shield(client: Client, callback_query: CallbackQuery):
 
 
 # ✅ Use scroll (1-time double vote)
-@bot.on_callback_query(filters.regex(r"use_scroll:(-?\d+):(\d+)"))
+@bot.on_callback_query(filters.regex(r"^use_scroll:(-?\d+):(\d+)$"))
 async def use_scroll(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
     if callback_query.from_user.id != user_id:
