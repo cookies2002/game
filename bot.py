@@ -509,13 +509,6 @@ async def upgrade_power(client, message: Message):
 
 
 # /shop command
- from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-
-# In-memory storage for games
-games = {}
-
-# /shop command
 @Client.on_message(filters.command("shop"))
 async def open_shop(client, message: Message):
     user_id = message.from_user.id
