@@ -19,6 +19,7 @@ mongo = MongoClient(MONGO_URL)
 db = mongo.fairy_game
 
 ADMIN_ID = 7813285237
+user_data = {}  # Store powers per user
 lobbies = {}
 games = {}
 blocked_powers = {}  # {group_id: set of user_ids who are blocked}
@@ -462,6 +463,13 @@ async def vote_player(client, message: Message):
 else:
     vote_weight = 1
 
+    # If the voted player has shield active, block the vote
+if voted_player.get("shield_active", False):
+    voted_player["shield_active"] = False  # Consume shield
+    await message.reply(f"🛡 {voted_player['name']}'s shield blocked the vote!")
+    return
+    
+
     # 🧓 Village Elder power
     if voter.get("role") == "Village Elder" and voter.get("type") == "Commoner" and voter.get("double_vote"):
         vote_weight *= 2
@@ -819,62 +827,67 @@ async def use_scroll(client: Client, callback_query: CallbackQuery):
             else:
                 return await callback_query.answer("⚠️ No scrolls left!", show_alert=True)
 
-#buy
+# /buy command
 @bot.on_message(filters.command("buy") & filters.private)
 async def buy_menu(client, message: Message):
     powers_text = "\n".join([f"🔹 <b>{name.capitalize()}</b>: {desc}" for name, desc in power_prices.items()])
     text = (
-        "<b>🛒 Buy Powers</b>\n\n"
+        "<b>🛍 Buy Powers</b>\n\n"
         f"{powers_text}\n\n"
-        "👉 Send your payment screenshot here.\n"
-        "Admin will verify and activate your powers.\n\n"
-        "⚠️ <i>Send the screenshot *after* payment to confirm your order.</i>"
+        "📸 Send your payment screenshot *here*.\n"
+        "🧾 Admin will verify and activate your power.\n\n"
+        "⚠️ <i>Send screenshot only after payment!</i>"
     )
     await message.reply(text, parse_mode="HTML")
 
-@bot.on_message(filters.photo & filters.private)
+# Handle payment screenshot
+@bot.on_message(filters.private & filters.photo)
 async def handle_payment_screenshot(client, message: Message):
     user = message.from_user
     caption = (
-        f"💸 <b>New Purchase Request</b>\n\n"
+        f"💳 <b>New Purchase Request</b>\n\n"
         f"👤 User: <a href='tg://user?id={user.id}'>{user.first_name}</a>\n"
         f"🆔 ID: <code>{user.id}</code>\n"
-        f"📷 Screenshot Below"
+        f"📷 Screenshot below."
     )
+    try:
+        await message.copy(chat_id=ADMIN_ID, caption=caption, parse_mode="HTML")
+        await message.reply("✅ Screenshot sent to admin. Please wait for approval.")
+    except Exception as e:
+        await message.reply("❌ Failed to send screenshot to admin.")
+        print(e)
 
-    # Forward screenshot to ADMIN
-    await message.copy(chat_id=ADMIN_ID, caption=caption, parse_mode="HTML")
-
-    await message.reply("✅ Screenshot sent to admin for verification.")
-
-    #allow
+# /allow command for admin
 @bot.on_message(filters.command("allow") & filters.user(ADMIN_ID))
 async def allow_power(client, message: Message):
-    if len(message.command) < 3:
-        await message.reply("Usage: /allow user_id power_name")
-        return
-
-    user_id = int(message.command[1])
-    power_name = message.command[2].lower()
-
-    if power_name not in ["shield", "scroll"]:
-        await message.reply("❌ Invalid power name.")
-        return
-
-    # Activate power (example: set in db or dictionary)
-    if user_id not in user_data:
-        user_data[user_id] = {}
-
-    if power_name == "vip":
-        user_data[user_id]["shield"] = 999  # Unlimited for 1 day
-    else:
-        user_data[user_id][power_name] = True
-
-    await message.reply(f"✅ Power '{power_name}' granted to user {user_id}.")
     try:
-        await client.send_message(user_id, f"🎉 Admin approved your purchase! Power '{power_name}' activated.")
-    except:
-        pass
+        _, uid_str, power_name = message.text.split(maxsplit=2)
+        user_id = int(uid_str)
+        power_name = power_name.lower()
+
+        if power_name not in ["shield", "scroll"]:
+            await message.reply("❌ Invalid power name. Use shield, scroll.")
+            return
+
+        # Create user entry if not exists
+        if user_id not in user_data:
+            user_data[user_id] = {}
+
+        if power_name == "vip":
+            user_data[user_id]["shield"] = 999  # Unlimited shields for 1 day
+        else:
+            user_data[user_id][power_name] = True
+
+        await message.reply(f"✅ Power '{power_name}' granted to user {user_id}.")
+
+        # Notify user
+        try:
+            await client.send_message(user_id, f"🎉 Admin approved your purchase!\nPower '{power_name}' activated.")
+        except:
+            await message.reply("⚠️ User could not be notified in DM (maybe privacy settings).")
+    except ValueError:
+        await message.reply("⚠️ Usage: /allow user_id power_name")
+
 
     
 # /leaderboard
