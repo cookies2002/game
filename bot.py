@@ -18,6 +18,7 @@ bot = Client("fairy_vs_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token
 mongo = MongoClient(MONGO_URL)
 db = mongo.fairy_game
 
+ADMIN_ID = 7813285237
 lobbies = {}
 games = {}
 blocked_powers = {}  # {group_id: set of user_ids who are blocked}
@@ -25,6 +26,10 @@ active_powers = {}  # Stores per game player power usage
 cooldowns = {}  # Cooldown to prevent spamming power
 used_powers = {}
 
+power_prices = {
+    "shield": "₹29 - Blocks 1 vote",
+    "scroll": "₹49 - Double vote power"
+}
 
 # Roles and Powers
 roles = {
@@ -812,6 +817,64 @@ async def use_scroll(client: Client, callback_query: CallbackQuery):
             else:
                 return await callback_query.answer("⚠️ No scrolls left!", show_alert=True)
 
+#buy
+@bot.on_message(filters.command("buy") & filters.private)
+async def buy_menu(client, message: Message):
+    powers_text = "\n".join([f"🔹 <b>{name.capitalize()}</b>: {desc}" for name, desc in power_prices.items()])
+    text = (
+        "<b>🛒 Buy Powers</b>\n\n"
+        f"{powers_text}\n\n"
+        "👉 Send your payment screenshot here.\n"
+        "Admin will verify and activate your powers.\n\n"
+        "⚠️ <i>Send the screenshot *after* payment to confirm your order.</i>"
+    )
+    await message.reply(text, parse_mode="HTML")
+
+@bot.on_message(filters.photo & filters.private)
+async def handle_payment_screenshot(client, message: Message):
+    user = message.from_user
+    caption = (
+        f"💸 <b>New Purchase Request</b>\n\n"
+        f"👤 User: <a href='tg://user?id={user.id}'>{user.first_name}</a>\n"
+        f"🆔 ID: <code>{user.id}</code>\n"
+        f"📷 Screenshot Below"
+    )
+
+    # Forward screenshot to ADMIN
+    await message.copy(chat_id=ADMIN_ID, caption=caption, parse_mode="HTML")
+
+    await message.reply("✅ Screenshot sent to admin for verification.")
+
+    #allow
+@bot.on_message(filters.command("allow") & filters.user(ADMIN_ID))
+async def allow_power(client, message: Message):
+    if len(message.command) < 3:
+        await message.reply("Usage: /allow user_id power_name")
+        return
+
+    user_id = int(message.command[1])
+    power_name = message.command[2].lower()
+
+    if power_name not in ["shield", "scroll"]:
+        await message.reply("❌ Invalid power name.")
+        return
+
+    # Activate power (example: set in db or dictionary)
+    if user_id not in user_data:
+        user_data[user_id] = {}
+
+    if power_name == "vip":
+        user_data[user_id]["shield"] = 999  # Unlimited for 1 day
+    else:
+        user_data[user_id][power_name] = True
+
+    await message.reply(f"✅ Power '{power_name}' granted to user {user_id}.")
+    try:
+        await client.send_message(user_id, f"🎉 Admin approved your purchase! Power '{power_name}' activated.")
+    except:
+        pass
+
+    
 # /leaderboard
 @bot.on_message(filters.command("leaderboard"))
 async def global_leaderboard(client, message: Message):
