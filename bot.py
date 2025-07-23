@@ -558,7 +558,7 @@ async def open_shop(client, message: Message):
                     ]
                 ]
 
-                return await message.reply(text, parse_mode=enums.ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
+                return await message.reply(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
                 
 
     await message.reply("❌ You are not part of an active game.")
