@@ -524,15 +524,23 @@ async def upgrade_power(client, message: Message):
     await message.reply("⚙️ Upgrade coming soon. Use coins to boost powers!")
 
 # /shop
+from pyrogram import Client, filters
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+
+# Assume games is a global dictionary
+games = {}  # This must be populated elsewhere with structure: {chat_id: {"players": {user_id: {...}}}}
+
+# /shop command
 @bot.on_message(filters.command("shop"))
 async def open_shop(client, message: Message):
     user_id = message.from_user.id
     chat_id = message.chat.id
 
-    # Search player in current game
-    for game in games.values():
-        for player in game["players"].values():
+    found = False
+    for game_chat_id, game in games.items():
+        for player_id, player in game["players"].items():
             if player["id"] == user_id:
+                found = True
                 coins = player.get("coins", 0)
                 xp = player.get("xp", 0)
                 level = player.get("level", 1)
@@ -550,28 +558,33 @@ async def open_shop(client, message: Message):
 
                 buttons = [
                     [
-                        InlineKeyboardButton("🛡️ Buy Shield", callback_data=f"buy:shield:{chat_id}"),
-                        InlineKeyboardButton("📜 Buy Scroll", callback_data=f"buy:scroll:{chat_id}")
+                        InlineKeyboardButton("🛡️ Buy Shield", callback_data=f"buy:shield:{game_chat_id}"),
+                        InlineKeyboardButton("📜 Buy Scroll", callback_data=f"buy:scroll:{game_chat_id}")
                     ],
                     [
-                        InlineKeyboardButton("⚖️ Buy Extra Vote", callback_data=f"buy:vote:{chat_id}")
+                        InlineKeyboardButton("⚖️ Buy Extra Vote", callback_data=f"buy:vote:{game_chat_id}")
                     ]
                 ]
 
-                return await message.reply(
+                await message.reply(
                     text,
                     parse_mode="html",
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
+                break
+        if found:
+            break
 
-    await message.reply("❌ You are not part of an active game.")
+    if not found:
+        await message.reply("❌ You are not part of an active game.")
 
+# Callback handler
 @bot.on_callback_query(filters.regex(r"^buy:(\w+):(-?\d+)$"))
 async def handle_shop_purchase(client, callback_query: CallbackQuery):
     item, chat_id = callback_query.matches[0].groups()
+    chat_id = int(chat_id)
     user_id = callback_query.from_user.id
 
-    chat_id = int(chat_id)
     game = games.get(chat_id)
     if not game:
         return await callback_query.answer("❌ Game not found.", show_alert=True)
@@ -590,7 +603,7 @@ async def handle_shop_purchase(client, callback_query: CallbackQuery):
     if coins < price:
         return await callback_query.answer("💰 Not enough coins!", show_alert=True)
 
-    # Deduct coins and apply item effect
+    # Deduct coins and give item
     player["coins"] -= price
 
     if item == "shield":
@@ -605,56 +618,61 @@ async def handle_shop_purchase(client, callback_query: CallbackQuery):
 
     await callback_query.answer("✅ Purchase successful!", show_alert=True)
     await client.send_message(user_id, f"{msg} You have {player['coins']} coins left.")
+
     
 
 # /myxp
 @bot.on_message(filters.command("myxp"))
 async def show_xp(client, message: Message):
     user_id = message.from_user.id
+    found = False
 
-    # Search in all games for this player
-    for game in games.values():
-        for player in game["players"].values():
-            if player["id"] == user_id:
+    for game_chat_id, game in games.items():
+        for player_id, player in game["players"].items():
+            if player.get("id") == user_id:
                 xp = player.get("xp", 0)
                 coins = player.get("coins", 0)
                 level = player.get("level", 1)
-                await client.send_message(
-                    user_id,
+
+                await message.reply(
                     f"📊 <b>Your XP Stats</b>\n\n"
                     f"⭐ XP: <b>{xp}</b>\n"
                     f"💰 Coins: <b>{coins}</b>\n"
                     f"⬆️ Level: <b>{level}</b>",
                     parse_mode="html"
                 )
-                return
+                found = True
+                break
+        if found:
+            break
 
-    await message.reply("❌ You are not in an active game.")
+    if not found:
+        await message.reply("❌ You are not in an active game.")
+
 
 # /mystats
 @bot.on_message(filters.command("mystats"))
 async def mystats(client, message: Message):
     user_id = message.from_user.id
     user_name = message.from_user.first_name
+    found = False
 
-    # Search all games for this user
-    for game in games.values():
-        for player in game["players"].values():
-            if player["id"] == user_id:
+    for game_chat_id, game in games.items():
+        for player_id, player in game["players"].items():
+            if player.get("id") == user_id:
                 team = player.get("team", "Unknown")
-                type_ = player.get("type", "Unknown")
+                role = player.get("type", "Unknown")
                 xp = player.get("xp", 0)
                 coins = player.get("coins", 0)
                 level = player.get("level", 1)
                 alive = "🟢 Alive" if player.get("alive", True) else "🔴 Defeated"
                 power_used = "✅ Used" if player.get("power_used") else "❌ Not Used"
-                power_name = powers.get(type_, "Unknown")
+                power_name = powers.get(role, "Unknown")
 
-                return await client.send_message(
-                    user_id,
+                await message.reply(
                     f"📊 <b>Your Game Stats</b>\n\n"
                     f"🙍 Name: <b>{user_name}</b>\n"
-                    f"🏷️ Role: <b>{type_}</b>\n"
+                    f"🏷️ Role: <b>{role}</b>\n"
                     f"🛡️ Team: <b>{team}</b>\n"
                     f"🎮 Status: {alive}\n"
                     f"🪄 Power: <b>{power_name}</b>\n"
@@ -664,9 +682,14 @@ async def mystats(client, message: Message):
                     f"⬆️ Level: <b>{level}</b>",
                     parse_mode="html"
                 )
+                found = True
+                break
+        if found:
+            break
 
-    # If not found in any game
-    await message.reply("⚠️ You are not in any ongoing game.")
+    if not found:
+        await message.reply("⚠️ You are not in any ongoing game.")
+
 
     
 # /stats
