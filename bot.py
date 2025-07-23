@@ -639,7 +639,7 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
     await callback_query.answer("❌ Player not found", show_alert=True)
 
 
-# ✅ Show user profile (with fallback if not in game)
+# # ✅ Show user profile (with fallback if not in game)
 async def show_profile(client, message):
     chat_id = message.chat.id
     user_id = message.from_user.id if message.from_user else None
@@ -652,17 +652,17 @@ async def show_profile(client, message):
         return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
     # 🔍 Search for player in the game
-    for player in game.get("players", []):
-        if player.get("id") == user_id:
-            text = f"👤 Profile of {player['name']}"
-            buttons = [
-                [InlineKeyboardButton("🎒 Inventory", callback_data=f"inventory:{chat_id}:{user_id}")],
-                [InlineKeyboardButton("🔙 Back", callback_data=f"profile_back:{chat_id}:{user_id}")]
-            ]
-            return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    player = next((p for p in game.get("players", []) if p.get("id") == user_id), None)
+    if player:
+        text = f"👤 Profile of {player['name']}"
+        buttons = [
+            [InlineKeyboardButton("🎒 Inventory", callback_data=f"inventory:{chat_id}:{user_id}")],
+            [InlineKeyboardButton("🔙 Back", callback_data=f"profile_back:{chat_id}:{user_id}")]
+        ]
+        return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
     # ❌ Player not found in game
-    text = "❌ Player not found."
+    text = "❌ Player not found in the current game."
     buttons = [[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]
     return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -671,18 +671,29 @@ async def show_profile(client, message):
 @bot.on_callback_query(filters.regex(r"^profile_back:(-?\d+):(\d+)$"))
 async def back_to_profile(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
-    game_data = games.get(chat_id)
+    game = games.get(chat_id)
 
-    if game_data:
-        for player in game_data.get("players", []):
-            if player.get("id") == user_id:
-                return await show_profile(client, callback_query.message)
+    if game:
+        player = next((p for p in game.get("players", []) if p.get("id") == user_id), None)
+        if player:
+            # 👤 Go back to profile
+            return await show_profile(client, callback_query.message)
 
-    # ⛔ Fallback if game/player not found
-    text = "👤 Profile:\n(No active game)"
+    # ⛔ Fallback: game or player not found
+    text = "👤 Profile:\n(No active game or user not found)"
     buttons = [[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]
     return await callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
+@bot.on_callback_query(filters.regex(r"^main_menu$"))
+async def main_menu_callback(client, callback_query):
+    await callback_query.message.edit_text(
+        "🏠 Main Menu",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("▶️ Start Game", callback_data="start_game")],
+            [InlineKeyboardButton("👤 Profile", callback_data="profile")]
+        ])
+    )
+    
 
 # ✅ Use shield (1-time defense)
 @bot.on_callback_query(filters.regex(r"^use_shield:(-?\d+):(\d+)$"))
