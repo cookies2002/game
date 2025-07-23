@@ -15,3 +15,5 @@ API_HASH = os.getenv("API_HASH", "your-api-hash")
 # Optional game settings (defaults)
 MIN_PLAYERS = int(os.getenv("MIN_PLAYERS", 4))
 MAX_PLAYERS = int(os.getenv("MAX_PLAYERS", 10))
+
+bot = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
