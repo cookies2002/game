@@ -463,13 +463,6 @@ async def vote_player(client, message: Message):
 else:
     vote_weight = 1
 
-    # If the voted player has shield active, block the vote
-if voted_player.get("shield_active", False):
-    voted_player["shield_active"] = False  # Consume shield
-    await message.reply(f"🛡 {voted_player['name']}'s shield blocked the vote!")
-    return
-    
-
     # 🧓 Village Elder power
     if voter.get("role") == "Village Elder" and voter.get("type") == "Commoner" and voter.get("double_vote"):
         vote_weight *= 2
