@@ -703,7 +703,7 @@ async def show_profile(client: Client, message: Message):
 
                 return await message.reply(
                     text,
-                    parse_mode="markdown",
+                    parse_mode="Markdown",
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
 
