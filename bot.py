@@ -6,8 +6,6 @@ from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineK
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pyrogram.enums import ParseMode
-from config import bot
-from profile import *  # ✅ Registers all handlers from profile.py
 
 load_dotenv()
 
