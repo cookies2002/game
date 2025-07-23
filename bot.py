@@ -511,16 +511,18 @@ await message.reply(
 )
 
     # Eliminate player if majority is reached
-    for target_id, count in vote_counts.items():
-        if count >= majority:
-            eliminated = next((p for p in players if p["id"] == target_id), None)
-            if eliminated:
-                eliminated["alive"] = False
-                await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
+for target_id, count in vote_counts.items():
+    if count >= majority:
+        eliminated = next((p for p in players if p["id"] == target_id), None)
+        if eliminated:
+            eliminated["alive"] = False
 
-                game["votes"] = {}  # Reset votes
-                await check_game_end(client, message, game)
-            break
+            await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
+
+            game["votes"] = {}  # Reset votes
+            await check_game_end(client, message, game)
+        break
+
 
 
 async def check_game_end(client, message, game):
