@@ -565,6 +565,48 @@ async def open_shop(client, message: Message):
                 )
 
     await message.reply("❌ You are not part of an active game.")
+    
+@bot.on_callback_query()
+async def handle_buy_buttons(client, callback_query):
+    data = callback_query.data  # Example: "buy:shield:CHAT_ID"
+    user_id = callback_query.from_user.id
+
+    if data.startswith("buy:"):
+        _, item, game_chat_id = data.split(":")
+
+        game = games.get(int(game_chat_id))
+        if not game:
+            return await callback_query.answer("⚠️ Game not found.", show_alert=True)
+
+        for player in game["players"]:
+            if player.get("id") == user_id:
+                coins = player.get("coins", 0)
+
+                # Define cost of each item
+                item_costs = {
+                    "shield": 3,
+                    "scroll": 5,
+                    "vote": 4
+                }
+
+                if item not in item_costs:
+                    return await callback_query.answer("❌ Invalid item.", show_alert=True)
+
+                cost = item_costs[item]
+
+                if coins < cost:
+                    return await callback_query.answer(f"💸 Not enough coins! You need {cost}.", show_alert=True)
+
+                # Deduct coins
+                player["coins"] -= cost
+
+                # Track item purchase
+                inventory = player.setdefault("inventory", {})
+                inventory[item] = inventory.get(item, 0) + 1
+
+                return await callback_query.answer(f"✅ {item.capitalize()} purchased!", show_alert=True)
+
+        return await callback_query.answer("❌ You are not part of the game.", show_alert=True)
 
     
 
