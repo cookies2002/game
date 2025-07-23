@@ -373,8 +373,7 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
         await client.send_message(chat_id, group_announce)
 
 #vote
-
-@app.on_message(filters.command("vote") & filters.group)
+@bot.on_message(filters.command("vote") & filters.group)
 def vote_command(client, message):
     chat_id = str(message.chat.id)
     voter_id = str(message.from_user.id)
