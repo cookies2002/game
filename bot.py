@@ -251,8 +251,7 @@ async def use_power_handler(client: Client, message: Message):
     except Exception:
         await message.reply("❌ Could not show target list.")
 
-
-@bot.on_callback_query(filters.regex(r"^usepower:(\d+):(-?\d+)$"))
+@bot.on_message(filters.command("usepower") & filters.private)
 # Updated handle_usepower_callback with proper logic enforcement and DM alerts
 # --- Power Usage Handler ---
 async def handle_usepower_callback(client, callback_query: CallbackQuery):
