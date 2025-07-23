@@ -630,7 +630,7 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
             )
             return await callback_query.message.edit_text(
                 inventory_text,
-                parse_mode="html",
+                parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("🔙 Back", callback_data=f"profile_back:{chat_id}:{user_id}")]
                 ])
