@@ -616,7 +616,7 @@ async def handle_callbacks(client, callback_query: CallbackQuery):
 
 
 # ✅ PROFILE COMMAND
-@app.on_message(filters.command("profile"))
+@bot.on_message(filters.command("profile"))
 async def show_profile(client: Client, message: Message):
     user_id = message.from_user.id
 
@@ -659,7 +659,7 @@ async def show_profile(client: Client, message: Message):
 
 
 # ✅ INVENTORY BUTTON
-@app.on_callback_query(filters.regex(r"inventory:(-?\d+):(\d+)"))
+@bot.on_callback_query(filters.regex(r"inventory:(-?\d+):(\d+)"))
 async def inventory_callback(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
     game = games.get(chat_id)
@@ -680,8 +680,8 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
     await callback_query.answer("❌ Player not found", show_alert=True)
 
 
-# ✅ USE SHIELD BUTTON
-@app.on_callback_query(filters.regex(r"use_shield:(-?\d+):(\d+)"))
+# ✅ USE SHIELD BUTTON (with power effect)
+@bot.on_callback_query(filters.regex(r"use_shield:(-?\d+):(\d+)"))
 async def shield_callback(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
     game = games.get(chat_id)
@@ -692,15 +692,16 @@ async def shield_callback(client: Client, callback_query: CallbackQuery):
         if player.get("id") == user_id:
             if player.get("shield", 0) > 0:
                 player["shield"] -= 1
-                return await callback_query.answer("🛡 Shield activated!", show_alert=True)
+                player["shield_active"] = True  # Activate protection
+                return await callback_query.answer("🛡 Shield activated! You'll block the next vote.", show_alert=True)
             else:
                 return await callback_query.answer("⚠️ No shields left!", show_alert=True)
 
     await callback_query.answer("❌ Player not found", show_alert=True)
 
 
-# ✅ USE SCROLL BUTTON
-@app.on_callback_query(filters.regex(r"use_scroll:(-?\d+):(\d+)"))
+# ✅ USE SCROLL BUTTON (with power effect)
+@bot.on_callback_query(filters.regex(r"use_scroll:(-?\d+):(\d+)"))
 async def scroll_callback(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
     game = games.get(chat_id)
@@ -711,12 +712,12 @@ async def scroll_callback(client: Client, callback_query: CallbackQuery):
         if player.get("id") == user_id:
             if player.get("scroll", 0) > 0:
                 player["scroll"] -= 1
-                return await callback_query.answer("📜 Scroll used successfully!", show_alert=True)
+                player["scroll_active"] = True  # Activate vote boost
+                return await callback_query.answer("📜 Scroll used! Your next vote will be doubled.", show_alert=True)
             else:
                 return await callback_query.answer("⚠️ No scrolls left!", show_alert=True)
 
     await callback_query.answer("❌ Player not found", show_alert=True)
-
 
 
 # /stats
