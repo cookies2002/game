@@ -83,6 +83,7 @@ async def join_game(client: Client, message: Message):
     if message.chat.type == "private":
         return await message.reply("❌ This command only works in groups.")
 
+    # Initialize game if not already
     if chat_id not in games:
         games[chat_id] = {
             "players": [],
@@ -90,37 +91,52 @@ async def join_game(client: Client, message: Message):
             "roles_assigned": False,
         }
 
+    # Check if game already started
     if games[chat_id]["started"]:
-        return await message.reply("🚫 Game already started! Wait for the next round.")
+        msg = await message.reply("🚫 Game already started! Wait for the next round.")
+        await asyncio.sleep(10)
+        return await msg.delete()
 
-    # Prevent duplicate join
+    # Check if user already joined
     if any(p["id"] == user.id for p in games[chat_id]["players"]):
-        return await message.reply("✅ You already joined the game.")
+        msg = await message.reply("✅ You already joined the game.")
+        await asyncio.sleep(10)
+        return await msg.delete()
 
-    await message.reply(
-    "📩 To fully participate, please [START the bot in private chat](https://t.me/fairy_game_bot). "
-    "Otherwise you won't receive power instructions!",
-    disable_web_page_preview=True
+    # Prompt to start bot in DM
+    dm_msg = await message.reply(
+        "📩 To fully participate, please [START the bot in private chat](https://t.me/fairy_game_bot). "
+        "Otherwise you won't receive power instructions!",
+        disable_web_page_preview=True,
     )
-    
-    # Add player
-games[chat_id]["players"].append({
-    "id": user.id,
-    "name": user.first_name,
-    "username": user.username or f"id{user.id}",
-    "alive": True,
-    "role": None,
-    "type": None,
-    "xp": 0,
-    "coins": 0,
-    "level": 1,
-    "shield_active": False,   # 🛡 Initially no shield
-    "scroll_active": False    # 📜 Initially no scroll
-})
+    await asyncio.sleep(10)
+    await dm_msg.delete()
 
+    # Add player
+    games[chat_id]["players"].append({
+        "id": user.id,
+        "name": user.first_name,
+        "username": user.username or f"id{user.id}",
+        "alive": True,
+        "role": None,
+        "type": None,
+        "xp": 0,
+        "coins": 0,
+        "level": 1,
+        "votes": 0,
+        "shield_active": False,
+        "scroll_active": False,
+    })
+
+    # Player count
     current_count = len(games[chat_id]["players"])
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
-    await message.reply(f"🙋 {mention} joined! ({current_count}/15)", parse_mode=ParseMode.HTML)
+    join_msg = await message.reply(
+        f"🙋 {mention} joined! ({current_count}/15)",
+        parse_mode=ParseMode.HTML
+    )
+    await asyncio.sleep(10)
+    await join_msg.delete()
 
     # Start countdown if 4+ players
     if current_count >= 4 and not games[chat_id]["started"]:
@@ -136,10 +152,10 @@ games[chat_id]["players"].append({
                     chat_id,
                     "🎲 <b>Roles assigned! Check your DM for your role and power.</b>",
                     parse_mode=ParseMode.HTML
-
                 )
 
         asyncio.create_task(countdown_start())
+
 
 
 async def assign_roles_and_start(client, chat_id):
