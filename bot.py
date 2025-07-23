@@ -562,6 +562,7 @@ async def upgrade_power(client, message: Message):
 
 
 # ✅ Show profile
+@bot.on_message(filters.command("profile"))
 @bot.on_callback_query(filters.regex(r"^profile$"))
 async def show_profile(client: Client, message: Message):
     user_id = message.from_user.id
