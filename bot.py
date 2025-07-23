@@ -104,17 +104,19 @@ async def join_game(client: Client, message: Message):
     )
     
     # Add player
-    games[chat_id]["players"].append({
-        "id": user.id,
-        "name": user.first_name,
-        "username": user.username or f"id{user.id}",
-        "alive": True,
-        "role": None,
-        "type": None,
-        "xp": 0,
-        "coins": 0,
-        "level": 1,
-    })
+games[chat_id]["players"].append({
+    "id": user.id,
+    "name": user.first_name,
+    "username": user.username or f"id{user.id}",
+    "alive": True,
+    "role": None,
+    "type": None,
+    "xp": 0,
+    "coins": 0,
+    "level": 1,
+    "shield_active": False,   # 🛡 Initially no shield
+    "scroll_active": False    # 📜 Initially no scroll
+})
 
     current_count = len(games[chat_id]["players"])
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
