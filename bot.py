@@ -628,44 +628,6 @@ async def mystats(client, message: Message):
 
     await message.reply("⚠️ You are not in any ongoing game.")
 
-@bot.on_callback_query(filters.regex(r"^buy:(\w+):(-?\d+)$"))
-async def handle_shop_purchase(client, callback_query: CallbackQuery):
-    item, chat_id = callback_query.matches[0].groups()
-    user_id = callback_query.from_user.id
-    chat_id = int(chat_id)
-
-    game = games.get(chat_id)
-    if not game:
-        return await callback_query.answer("❌ Game not found.", show_alert=True)
-
-    player = next((p for p in game["players"] if p.get("id") == user_id), None)
-    if not player:
-        return await callback_query.answer("❌ Player not found.", show_alert=True)
-
-    coins = player.get("coins", 0)
-    item_prices = {"shield": 3, "scroll": 5, "vote": 4}
-
-    if item not in item_prices:
-        return await callback_query.answer("❌ Unknown item.", show_alert=True)
-
-    price = item_prices[item]
-    if coins < price:
-        return await callback_query.answer("💰 Not enough coins!", show_alert=True)
-
-    player["coins"] -= price
-
-    if item == "shield":
-        player["shop_shield"] = True
-        msg = "🛡️ Shield purchased!"
-    elif item == "scroll":
-        player["shop_scroll"] = True
-        msg = "📜 Scroll purchased!"
-    elif item == "vote":
-        player["extra_vote"] = True
-        msg = "⚖️ Extra vote purchased!"
-
-    await callback_query.answer("✅ Purchase successful!", show_alert=True)
-    await client.send_message(user_id, f"{msg} You have {player['coins']} coins left.")
 
 
 # /stats
