@@ -642,7 +642,7 @@ async def show_profile(client, message: Message):
                     [InlineKeyboardButton("🎒 View Inventory", callback_data=f"inventory:{game_chat_id}")]
                 ]
 
-                return await message.reply(text, parse_mode=ParseMode.HTML", reply_markup=InlineKeyboardMarkup(buttons))
+                return await message.reply(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
 
     await message.reply("❌ You are not part of an active game.")
 
