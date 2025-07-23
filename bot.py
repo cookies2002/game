@@ -562,8 +562,7 @@ async def upgrade_power(client, message: Message):
 
 
 # ✅ Show profile
-@bot.on_message(filters.command("profile"))
-@bot.on_callback_query(filters.regex(r"^profile$"))
+@bot.on_message(filters.command("profile") & filters.private)
 async def show_profile(client: Client, message: Message):
     user_id = message.from_user.id
 
@@ -695,7 +694,7 @@ async def main_menu_callback(client, callback_query):
         "🏠 Main Menu",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("▶️ Start Game", callback_data="startgame")],
-            [InlineKeyboardButton("👤 Profile", callback_data="profile")],  # <-- fixed here
+            [InlineKeyboardButton("👤 Profile", callback_data="show_profile")],  # <-- fixed here
         ])
     )
 
