@@ -851,7 +851,7 @@ async def buy_menu(client, message: Message):
         "🧾 Admin will verify and activate your power.\n\n"
         "⚠️ <i>Send screenshot only after payment!</i>"
     )
-    await message.reply(text, parse_mode="HTML")
+    await message.reply(text, parse_mode=ParseMode.HTML)
 
 # Handle payment screenshot
 @bot.on_message(filters.private & filters.photo)
