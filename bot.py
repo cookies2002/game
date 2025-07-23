@@ -693,8 +693,8 @@ async def main_menu_callback(client, callback_query):
     await callback_query.message.edit_text(
         "🏠 Main Menu",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("▶️ Start Game", callback_data="start_game")],
-            [InlineKeyboardButton("👤 Profile", callback_data="show_profile")],  # <-- fixed here
+            [InlineKeyboardButton("▶️ Start Game", callback_data="startgame")],
+            [InlineKeyboardButton("👤 Profile", callback_data="profile")],  # <-- fixed here
         ])
     )
 
