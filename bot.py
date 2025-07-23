@@ -615,13 +615,12 @@ async def handle_callbacks(client, callback_query: CallbackQuery):
 
     if data.startswith("inventory:"):
         parts = data.split(":")
-if len(parts) >= 2:
-    _, game_chat_id = parts[0], parts[1]
-else:
-    return await callback_query.answer("Invalid data format.", show_alert=True)
-    
-        game = games.get(int(game_chat_id))
+        if len(parts) >= 2:
+            _, game_chat_id = parts[0], parts[1]
+        else:
+            return await callback_query.answer("Invalid data format.", show_alert=True)
 
+        game = games.get(int(game_chat_id))
         if not game:
             return await callback_query.answer("⚠️ Game not found.", show_alert=True)
 
@@ -638,11 +637,11 @@ else:
 
         return await callback_query.answer("❌ You are not part of the game.", show_alert=True)
 
-    if data.startswith("buy:"):
+    elif data.startswith("buy:"):
         try:
             _, item, game_chat_id = data.split(":")
             game_chat_id = int(game_chat_id)
-        except:
+        except ValueError:
             return await callback_query.answer("⚠️ Invalid data.", show_alert=True)
 
         game = games.get(game_chat_id)
@@ -661,7 +660,9 @@ else:
         for player in game["players"]:
             if player["id"] == user_id:
                 if player.get("coins", 0) < item_prices[item]:
-                    return await callback_query.answer(f"💸 Not enough coins (Need {item_prices[item]})", show_alert=True)
+                    return await callback_query.answer(
+                        f"💸 Not enough coins (Need {item_prices[item]})", show_alert=True
+                    )
 
                 player["coins"] -= item_prices[item]
                 inventory = player.setdefault("inventory", {})
@@ -670,6 +671,7 @@ else:
                 return await callback_query.answer(f"✅ Bought {item.capitalize()}!", show_alert=True)
 
         return await callback_query.answer("❌ You are not part of this game.", show_alert=True)
+
 
 
 # ✅ PROFILE COMMAND
