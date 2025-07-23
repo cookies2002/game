@@ -474,13 +474,15 @@ async def vote_player(client, message: Message):
 
     # 📜 Scroll power (double vote)
     if voter_player.get("scroll_active"):
-       vote_weight = 2
-       voter_player["scroll_active"] = False  # Consume scroll
-   else:
-       vote_weight = 1
+        vote_weight = 2
+        voter_player["scroll_active"] = False  # Consume scroll
 
     # 🧓 Village Elder power
-    if voter.get("role") == "Village Elder" and voter.get("type") == "Commoner" and voter.get("double_vote"):
+    if (
+        voter.get("role") == "Village Elder"
+        and voter.get("type") == "Commoner"
+        and voter.get("double_vote")
+    ):
         vote_weight *= 2
 
     # ✅ Register vote
