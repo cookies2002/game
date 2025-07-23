@@ -525,7 +525,7 @@ async def upgrade_power(client, message: Message):
 
 
 # /shop command
-@bot.on_message(filters.command("shop"))
+@Client.on_message(filters.command("shop"))
 async def open_shop(client, message: Message):
     user_id = message.from_user.id
     chat_id = message.chat.id
@@ -541,23 +541,23 @@ async def open_shop(client, message: Message):
             level = player.get("level", 1)
 
             text = (
-                f"🛒 <b>Shop Items</b>\n"
+                f"🛍 <b>Welcome to the Shop!</b>\n"
                 f"💰 Coins: <b>{coins}</b>\n"
                 f"⭐ XP: <b>{xp}</b>\n"
                 f"⬆️ Level: <b>{level}</b>\n\n"
-                f"🧷 Available:\n"
-                f"- 🛡️ Shield: 3 coins\n"
-                f"- 📜 Scroll: 5 coins\n"
-                f"- ⚖️ Extra Vote: 4 coins"
+                f"Available Items:\n"
+                f"🛡 Shield - <b>3</b> Coins\n"
+                f"📜 Scroll - <b>5</b> Coins\n"
+                f"⚖ Extra Vote - <b>4</b> Coins"
             )
 
             buttons = [
                 [
-                    InlineKeyboardButton("🛡️ Buy Shield", callback_data=f"buy:shield:{chat_id}"),
+                    InlineKeyboardButton("🛡 Buy Shield", callback_data=f"buy:shield:{chat_id}"),
                     InlineKeyboardButton("📜 Buy Scroll", callback_data=f"buy:scroll:{chat_id}")
                 ],
                 [
-                    InlineKeyboardButton("⚖️ Buy Extra Vote", callback_data=f"buy:vote:{chat_id}")
+                    InlineKeyboardButton("⚖ Buy Extra Vote", callback_data=f"buy:vote:{chat_id}")
                 ]
             ]
 
@@ -567,49 +567,49 @@ async def open_shop(client, message: Message):
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
 
-    await message.reply("❌ You are not part of an active game.")
+    await message.reply("❌ You are not part of the game.")
 
 
-# Button Handler
-@bot.on_callback_query()
-async def handle_buy_buttons(client: Client, callback_query: CallbackQuery):
-    data = callback_query.data  # e.g., buy:shield:CHAT_ID
+@Client.on_callback_query()
+async def handle_shop_purchase(client: Client, callback_query: CallbackQuery):
+    data = callback_query.data  # Format: buy:shield:chat_id
     user_id = callback_query.from_user.id
 
-    if data.startswith("buy:"):
-        try:
-            _, item, game_chat_id = data.split(":")
-            game_chat_id = int(game_chat_id)
-        except:
-            return await callback_query.answer("⚠️ Invalid callback data.", show_alert=True)
+    if not data.startswith("buy:"):
+        return
 
-        game = games.get(game_chat_id)
-        if not game:
-            return await callback_query.answer("⚠️ Game not found.", show_alert=True)
+    try:
+        _, item, game_chat_id = data.split(":")
+        game_chat_id = int(game_chat_id)
+    except:
+        return await callback_query.answer("⚠️ Invalid data.", show_alert=True)
 
-        item_costs = {
-            "shield": 3,
-            "scroll": 5,
-            "vote": 4
-        }
+    game = games.get(game_chat_id)
+    if not game:
+        return await callback_query.answer("⚠️ Game not found.", show_alert=True)
 
-        if item not in item_costs:
-            return await callback_query.answer("❌ Invalid item.", show_alert=True)
+    item_prices = {
+        "shield": 3,
+        "scroll": 5,
+        "vote": 4
+    }
 
-        for player in game["players"]:
-            if player.get("id") == user_id:
-                coins = player.get("coins", 0)
-                if coins < item_costs[item]:
-                    return await callback_query.answer(f"💸 Not enough coins! Need {item_costs[item]}.", show_alert=True)
+    if item not in item_prices:
+        return await callback_query.answer("❌ Invalid item.", show_alert=True)
 
-                # Deduct coins and update inventory
-                player["coins"] -= item_costs[item]
-                inventory = player.setdefault("inventory", {})
-                inventory[item] = inventory.get(item, 0) + 1
+    for player in game["players"]:
+        if player["id"] == user_id:
+            if player.get("coins", 0) < item_prices[item]:
+                return await callback_query.answer(f"💸 Not enough coins (Need {item_prices[item]})", show_alert=True)
 
-                return await callback_query.answer(f"✅ {item.capitalize()} purchased!", show_alert=True)
+            # Deduct coins and update inventory
+            player["coins"] -= item_prices[item]
+            inventory = player.setdefault("inventory", {})
+            inventory[item] = inventory.get(item, 0) + 1
 
-        return await callback_query.answer("❌ You are not part of this game.", show_alert=True)
+            return await callback_query.answer(f"✅ Bought {item.capitalize()}!", show_alert=True)
+
+    return await callback_query.answer("❌ You are not part of this game.", show_alert=True)
 
     
 # ===============================
