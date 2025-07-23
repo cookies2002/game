@@ -562,7 +562,7 @@ async def upgrade_power(client, message: Message):
 
 
 # ✅ Show profile
-@bot.on_message(filters.command("profile") & filters.private)
+@bot.on_message(filters.command("profile"))
 async def show_profile(client: Client, message: Message):
     user_id = message.from_user.id
 
@@ -604,7 +604,7 @@ async def show_profile(client: Client, message: Message):
 
                 return await message.reply(
                     text,
-                    parse_mode="html",
+                    parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
 
