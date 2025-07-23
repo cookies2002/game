@@ -83,7 +83,6 @@ async def join_game(client: Client, message: Message):
     if message.chat.type == "private":
         return await message.reply("❌ This command only works in groups.")
 
-    # Initialize game if not already
     if chat_id not in games:
         games[chat_id] = {
             "players": [],
@@ -91,28 +90,17 @@ async def join_game(client: Client, message: Message):
             "roles_assigned": False,
         }
 
-    # Check if game already started
     if games[chat_id]["started"]:
         msg = await message.reply("🚫 Game already started! Wait for the next round.")
         await asyncio.sleep(10)
         return await msg.delete()
 
-    # Check if user already joined
     if any(p["id"] == user.id for p in games[chat_id]["players"]):
         msg = await message.reply("✅ You already joined the game.")
         await asyncio.sleep(10)
         return await msg.delete()
 
-    # Prompt to start bot in DM
-    dm_msg = await message.reply(
-        "📩 To fully participate, please [START the bot in private chat](https://t.me/fairy_game_bot). "
-        "Otherwise you won't receive power instructions!",
-        disable_web_page_preview=True,
-    )
-    await asyncio.sleep(10)
-    await dm_msg.delete()
-
-    # Add player
+    # Add player quickly first
     games[chat_id]["players"].append({
         "id": user.id,
         "name": user.first_name,
@@ -128,7 +116,7 @@ async def join_game(client: Client, message: Message):
         "scroll_active": False,
     })
 
-    # Player count
+    # ✅ Quick join confirmation
     current_count = len(games[chat_id]["players"])
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
     join_msg = await message.reply(
@@ -137,6 +125,16 @@ async def join_game(client: Client, message: Message):
     )
     await asyncio.sleep(10)
     await join_msg.delete()
+
+    # 📩 DM Prompt with clickable link
+    dm_msg = await message.reply(
+        "📩 To fully participate, please <a href='https://t.me/fairy_game_bot'>START the bot in private chat</a>. "
+        "Otherwise you won't receive power instructions!",
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
+    )
+    await asyncio.sleep(10)
+    await dm_msg.delete()
 
     # Start countdown if 4+ players
     if current_count >= 4 and not games[chat_id]["started"]:
