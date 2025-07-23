@@ -643,12 +643,24 @@ async def inventory_callback(client: Client, callback_query: CallbackQuery):
 @bot.on_callback_query(filters.regex(r"^profile_back:(-?\d+):(\d+)$"))
 async def back_to_profile(client: Client, callback_query: CallbackQuery):
     chat_id, user_id = map(int, callback_query.data.split(":")[1:])
-    for player in games.get(chat_id, {}).get("players", []):
-        if player.get("id") == user_id:
-            message = callback_query.message
-            return await show_profile(client, message)
-    await callback_query.answer("❌ Player not found", show_alert=True)
+    
+    # 🔁 Always show profile, even if no active game
+    message = callback_query.message
+    return await show_profile(client, message)
 
+@bot.on_callback_query(filters.regex(r"^profile_back:(-?\d+):(\d+)$"))
+async def back_to_profile(client: Client, callback_query: CallbackQuery):
+    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
+    game_data = games.get(chat_id)
+
+    if game_data:
+        for player in game_data.get("players", []):
+            if player.get("id") == user_id:
+                return await show_profile(client, callback_query.message)
+
+    # Still show profile even if game or player not found
+    return await show_profile(client, callback_query.message)
+    
 
 # ✅ Use shield (1-time defense)
 @bot.on_callback_query(filters.regex(r"^use_shield:(-?\d+):(\d+)$"))
