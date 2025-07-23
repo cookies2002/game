@@ -523,45 +523,6 @@ async def check_game_end(client, message, game):
 async def upgrade_power(client, message: Message):
     await message.reply("⚙️ Upgrade coming soon. Use coins to boost powers!")
 
-# /shop
-# /shop command
-@bot.on_message(filters.command("shop"))
-async def open_shop(client, message: Message):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
-
-    for game_chat_id, game in games.items():
-        for player in game["players"]:
-            if player.get("id") == user_id:
-                coins = player.get("coins", 0)
-                xp = player.get("xp", 0)
-                level = player.get("level", 1)
-
-                text = (
-                    f"🛒 <b>Shop Items</b>\n"
-                    f"💰 Coins: <b>{coins}</b>\n"
-                    f"⭐ XP: <b>{xp}</b>\n"
-                    f"⬆️ Level: <b>{level}</b>\n\n"
-                    f"🧷 Available:\n"
-                    f"- 🛡️ Shield: 3 coins\n"
-                    f"- 📜 Scroll: 5 coins\n"
-                    f"- ⚖️ Extra Vote: 4 coins"
-                )
-
-                buttons = [
-                    [
-                        InlineKeyboardButton("🛡️ Buy Shield", callback_data=f"buy:shield:{game_chat_id}"),
-                        InlineKeyboardButton("📜 Buy Scroll", callback_data=f"buy:scroll:{game_chat_id}")
-                    ],
-                    [
-                        InlineKeyboardButton("⚖️ Buy Extra Vote", callback_data=f"buy:vote:{game_chat_id}")
-                    ]
-                ]
-
-                return await message.reply(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons))
-                
-
-    await message.reply("❌ You are not part of an active game.")
 
     
 
