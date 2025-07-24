@@ -19,6 +19,7 @@ mongo = MongoClient(MONGO_URL)
 db = mongo.fairy_game
 
 ADMIN_ID = 7813285237
+profile_db.json = {}
 user_data = {}  # Store powers per user
 lobbies = {}
 games = {}
