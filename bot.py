@@ -668,7 +668,7 @@ async def show_profile(_, message):
     if game:
         player = next((p for p in game["players"] if p["id"] == user_id), None)
     else:
-        player = users.get(str(user_id))  # fallback for outside-game profile
+        player = user_data.get(str(user_id)) or user_data.get(user_id)  # ✅ fixed here
 
     if not player:
         await message.reply("❌ Profile not found.")
@@ -689,6 +689,7 @@ async def show_profile(_, message):
     )
 
     await message.reply(profile_text, parse_mode=ParseMode.HTML)
+
 
 
 # ✅ Show inventory
