@@ -411,7 +411,7 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
 
 
 #vote
-@bot.on_message(filters.command("vote"))
+@bot.on_message(filters.command("vote") & filters.private)
 async def vote_player(client, message: Message):
     chat_id = message.chat.id
     voter_id = message.from_user.id
@@ -462,22 +462,23 @@ async def vote_player(client, message: Message):
 vote_weight = 1
 
 # 👻 Ghost logic (one-time vote after death)
-if voter.get("role") == "Ghost" and not voter["alive"]:
+if voter.get("role") == "Ghost" and not voter.get("alive"):
     if voter.get("ghost_voted"):
-        return await message.reply("👻 You already used your Ghost vote!")
+        await message.reply("👻 You already used your Ghost vote!")
+        return  # 👈 this return is now valid inside function
     voter["ghost_voted"] = True
 
 # 😵‍💫 Shadow blinded (vote = 0)
 if voter.get("blinded"):
     vote_weight = 0
-    voter["blinded"] = False  # Consume effect
+    voter["blinded"] = False  # Effect used up
 
 # 📜 Scroll power (double vote)
 if voter.get("scroll_active"):
     vote_weight = 2
-    voter["scroll_active"] = False  # Consume scroll
+    voter["scroll_active"] = False
 
-# 🧓 Village Elder power
+# 🧓 Village Elder power (double vote if Commoner)
 if (
     voter.get("role") == "Village Elder"
     and voter.get("type") == "Commoner"
@@ -486,9 +487,13 @@ if (
     vote_weight *= 2
 
 # ✅ Register vote
-votes[voter_id] = {"target_id": target["id"], "weight": vote_weight}
+votes[voter_id] = {
+    "target_id": target["id"],
+    "weight": vote_weight
+}
 game["votes"] = votes
 
+# ✉️ Notify user
 await message.reply(
     f"🗳️ You voted against {target['name']}.\n"
     f"Vote Power: {vote_weight}"
@@ -500,6 +505,9 @@ for vote in votes.values():
     tid = vote["target_id"]
     weight = vote["weight"]
     vote_counts[tid] = vote_counts.get(tid, 0) + weight
+
+# 🧾 Store back to game
+game["vote_counts"] = vote_counts
 
 
     # 🧮 Calculate total possible voting power (for majority)
