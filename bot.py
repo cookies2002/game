@@ -1,12 +1,11 @@
 import os
 import asyncio
 import random
-from pyrogram import Client, filters
+from pyrogram import Client, filters, enums
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pyrogram.enums import ParseMode
-from pyrogram import enums
 
 load_dotenv()
 
@@ -659,8 +658,11 @@ async def team_status(client, message: Message):
         "<b>😈 Villain Team Members:</b>\n" + villain_text
     )
 
-    await message.reply(msg, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
-
+    await message.reply(
+        msg,
+        parse_mode=enums.ParseMode.HTML,  # ✅ Correctly using enums.ParseMode
+        disable_web_page_preview=True
+    )
 
 # ✅ Show profile
 @bot.on_message(filters.command("profile") & filters.private)
