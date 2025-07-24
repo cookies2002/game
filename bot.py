@@ -6,7 +6,8 @@ from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineK
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pyrogram.enums import ParseMode
-
+import json
+        
 load_dotenv()
 
 API_ID = int(os.getenv("API_ID"))
@@ -18,8 +19,19 @@ bot = Client("fairy_vs_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token
 mongo = MongoClient(MONGO_URL)
 db = mongo.fairy_game
 
+DATA_FILE = "profile_db.json"
+
+if os.path.exists(DATA_FILE):
+    with open(DATA_FILE, "r") as f:
+        user_data = json.load(f)
+else:
+    user_data = {}
+
+def save_data():
+    with open(DATA_FILE, "w") as f:
+        json.dump(user_data, f, indent=2)
+        
 ADMIN_ID = 7813285237
-profile_db.json = {}
 user_data = {}  # Store powers per user
 lobbies = {}
 games = {}
@@ -670,91 +682,55 @@ async def team_status(client, message: Message):
 
 # ✅ Show profile (works even outside game)
 @bot.on_message(filters.command("profile") & filters.private)
-async def show_profile(_, message):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
+async def profile(_, message):
+    user_id = str(message.from_user.id)
+    player = user_data.get(user_id)
 
-    player = None
-
-    # 1️⃣ Try to find game in the current chat (in case it's a group game)
-    game = games.get(chat_id)
-    if game:
-        for p in game.get("players", []):
-            if p["id"] == user_id:
-                player = p
-                break
-
-    # 2️⃣ If not in group game, fallback to global user_data
     if not player:
-        player = user_data.get(str(user_id)) or user_data.get(user_id)
+        player = {
+            "id": user_id,
+            "name": message.from_user.first_name,
+            "coins": 0,
+            "shield": 0,
+            "scroll": 0,
+        }
+        user_data[user_id] = player
+        save_data()
 
-    # 3️⃣ Still not found? Send error
-    if not player:
-        await message.reply("❌ Profile not found. Join a game using /join.")
-        return
-
-    # 4️⃣ Fetch player stats
-    username = player.get("name") or message.from_user.mention
-    shield = player.get("shield", 0)
-    scroll = player.get("scroll", 0)
-    total_votes = player.get("votes", 0)
-    eliminated = player.get("eliminated", False)
-
-    # 5️⃣ Create profile message
-    profile_text = (
-        f"👤 <b>Profile:</b> {username}\n"
-        f"🛡️ Shield: {shield}\n"
-        f"📜 Scroll: {scroll}\n"
-        f"🗳️ Total Votes Received: {total_votes}\n"
-        f"💀 Status: {'Eliminated' if eliminated else 'Alive'}"
+    text = (
+        f"👤 Profile: {player['name']}\n"
+        f"💰 Coins: {player.get('coins', 0)}\n"
+        f"🛡 Shield: {player.get('shield', 0)}\n"
+        f"📜 Scroll: {player.get('scroll', 0)}"
     )
-
-    await message.reply(profile_text, parse_mode=ParseMode.HTML)
+    await message.reply(text)
 
 
 # ✅ Show inventory
 @bot.on_message(filters.command("inventory") & filters.private)
-async def view_inventory(_, message):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
-
-    # Check game or fallback to user_data
-    player = None
-    if chat_id in games:
-        player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
-    if not player:
-        player = user_data.get(str(user_id))
+async def inventory(_, message):
+    user_id = str(message.from_user.id)
+    player = user_data.get(user_id)
 
     if not player:
-        await message.reply("❌ You are not in a game.")
+        await message.reply("❌ You don't have a profile. Send /profile first.")
         return
 
-    inventory_text = (
-        f"🎒 <b>Your Inventory</b>\n"
-        f"🛡️ Shield: {player.get('shield', 0)}\n"
+    text = (
+        f"🎒 Inventory:\n"
+        f"🛡 Shield: {player.get('shield', 0)}\n"
         f"📜 Scroll: {player.get('scroll', 0)}"
     )
-    await message.reply(inventory_text, parse_mode=ParseMode.HTML)
+    await message.reply(text)
 
 # ✅ Use shield (1-time vote block)
 @bot.on_message(filters.command("use_shield") & filters.private)
 async def use_shield(_, message):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
-
-    # Check game or fallback to user_data
-    player = None
-    if chat_id in games:
-        player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
-    if not player:
-        player = user_data.get(str(user_id))
+    user_id = str(message.from_user.id)
+    player = user_data.get(user_id)
 
     if not player:
-        await message.reply("❌ You are not in a game.")
-        return
-
-    if player.get("eliminated"):
-        await message.reply("💀 You are eliminated and cannot use items.")
+        await message.reply("❌ You don't have a profile. Send /profile first.")
         return
 
     if player.get("shield", 0) <= 0:
@@ -762,34 +738,24 @@ async def use_shield(_, message):
         return
 
     if player.get("shield_active", False):
-        await message.reply("🛡️ Shield already active!")
+        await message.reply("🛡 Shield already active!")
         return
 
     player["shield"] -= 1
     player["shield_active"] = True
-    user_data[str(user_id)] = player.copy()  # 🔄 Sync update
+    save_data()
 
-    await message.reply("🛡️ Shield activated! It will protect you from one vote.")
+    await message.reply("🛡 Shield activated! You'll be protected from the next elimination.")
+    
 
 # ✅ Use scroll (1-time double vote)
 @bot.on_message(filters.command("use_scroll") & filters.private)
 async def use_scroll(_, message):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
-
-    # Check game or fallback to user_data
-    player = None
-    if chat_id in games:
-        player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
-    if not player:
-        player = user_data.get(str(user_id))
+    user_id = str(message.from_user.id)
+    player = user_data.get(user_id)
 
     if not player:
-        await message.reply("❌ You are not in a game.")
-        return
-
-    if player.get("eliminated"):
-        await message.reply("💀 You are eliminated and cannot use items.")
+        await message.reply("❌ You don't have a profile. Send /profile first.")
         return
 
     if player.get("scroll", 0) <= 0:
@@ -802,11 +768,9 @@ async def use_scroll(_, message):
 
     player["scroll"] -= 1
     player["scroll_active"] = True
-    user_data[str(user_id)] = player.copy()  # 🔄 Sync update
+    save_data()
 
     await message.reply("📜 Scroll activated! Your next vote will count as 2 votes.")
-
-
 
 
 # /buy command
