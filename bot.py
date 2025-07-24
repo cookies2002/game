@@ -716,15 +716,16 @@ async def show_profile(_, message):
 async def view_inventory(_, message):
     user_id = message.from_user.id
     chat_id = message.chat.id
-    game = games.get(chat_id)
 
-    if not game:
-        await message.reply("❌ You are not in a game.")
-        return
-
-    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    # Check game or fallback to user_data
+    player = None
+    if chat_id in games:
+        player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
     if not player:
-        await message.reply("❌ You are not a participant.")
+        player = user_data.get(str(user_id))
+
+    if not player:
+        await message.reply("❌ You are not in a game.")
         return
 
     inventory_text = (
@@ -739,18 +740,19 @@ async def view_inventory(_, message):
 async def use_shield(_, message):
     user_id = message.from_user.id
     chat_id = message.chat.id
-    game = games.get(chat_id)
 
-    if not game:
+    # Check game or fallback to user_data
+    player = None
+    if chat_id in games:
+        player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
+    if not player:
+        player = user_data.get(str(user_id))
+
+    if not player:
         await message.reply("❌ You are not in a game.")
         return
 
-    player = next((p for p in game["players"] if p["id"] == user_id), None)
-    if not player:
-        await message.reply("❌ You are not a participant.")
-        return
-
-    if player.get("eliminated", False):
+    if player.get("eliminated"):
         await message.reply("💀 You are eliminated and cannot use items.")
         return
 
@@ -764,6 +766,7 @@ async def use_shield(_, message):
 
     player["shield"] -= 1
     player["shield_active"] = True
+    user_data[str(user_id)] = player.copy()  # 🔄 Sync update
 
     await message.reply("🛡️ Shield activated! It will protect you from one vote.")
 
@@ -772,18 +775,19 @@ async def use_shield(_, message):
 async def use_scroll(_, message):
     user_id = message.from_user.id
     chat_id = message.chat.id
-    game = games.get(chat_id)
 
-    if not game:
+    # Check game or fallback to user_data
+    player = None
+    if chat_id in games:
+        player = next((p for p in games[chat_id]["players"] if p["id"] == user_id), None)
+    if not player:
+        player = user_data.get(str(user_id))
+
+    if not player:
         await message.reply("❌ You are not in a game.")
         return
 
-    player = next((p for p in game["players"] if p["id"] == user_id), None)
-    if not player:
-        await message.reply("❌ You are not a participant.")
-        return
-
-    if player.get("eliminated", False):
+    if player.get("eliminated"):
         await message.reply("💀 You are eliminated and cannot use items.")
         return
 
@@ -797,8 +801,10 @@ async def use_scroll(_, message):
 
     player["scroll"] -= 1
     player["scroll_active"] = True
+    user_data[str(user_id)] = player.copy()  # 🔄 Sync update
 
     await message.reply("📜 Scroll activated! Your next vote will count as 2 votes.")
+
 
 
 
