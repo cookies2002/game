@@ -688,7 +688,7 @@ async def show_profile(_, message):
         f"💀 Status: {'Eliminated' if eliminated else 'Alive'}"
     )
 
-    await message.reply(profile_text, parse_mode=.HTML,)
+    await message.reply(profile_text, parse_mode=.HTML)
 
 
 # ✅ Show inventory
