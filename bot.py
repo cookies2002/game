@@ -658,191 +658,129 @@ async def team_status(client, message: Message):
         disable_web_page_preview=True
     )
 
-# ✅ Show profile
-@bot.on_message(filters.command("profile") & filters.private)
-async def show_profile(client: Client, message: Message):
+
+# ✅ Show profile (works even outside game)
+@bot.on_message(filters.command("profile"))
+async def show_profile(_, message):
     user_id = message.from_user.id
-
-    for game_chat_id, game in games.items():
-        for player in game["players"]:
-            if player.get("id") == user_id:
-                coins = player.get("coins", 0)
-                xp = player.get("xp", 0)
-                level = player.get("level", 1)
-                role = player.get("role", "🧍 Player")
-                shield = player.get("shield", 0)
-                scroll = player.get("scroll", 0)
-                shield_active = player.get("shield_active", False)
-                scroll_active = player.get("scroll_active", False)
-                power = level * 10 + xp
-
-                next_level_xp = (level + 1) * 10
-                progress = int((xp / next_level_xp) * 10)
-                progress_bar = "🟩" * progress + "⬜" * (10 - progress)
-
-                text = (
-                    f"👤 <b>Your Profile</b>\n"
-                    f"🪪 Name: <b>{message.from_user.first_name}</b>\n"
-                    f"🪙 Coins: <b>{coins}</b>\n"
-                    f"⭐ XP: <b>{xp}</b>\n"
-                    f"⬆️ Level: <b>{level}</b>\n"
-                    f"⚡ Power Level: <b>{power}</b>\n"
-                    f"📈 XP Progress: <code>[{progress_bar}]</code>\n"
-                    f"🎭 Role: <b>{role}</b>\n"
-                    f"🛡 Shield: <b>{shield}</b> {'🟢 Active' if shield_active else ''}\n"
-                    f"📜 Scroll: <b>{scroll}</b> {'🟢 Active' if scroll_active else ''}"
-                )
-
-                buttons = [
-                    [InlineKeyboardButton("🎒 View Inventory", callback_data=f"inventory:{game_chat_id}:{user_id}")],
-                    [InlineKeyboardButton("🛡 Use Shield", callback_data=f"use_shield:{game_chat_id}:{user_id}")],
-                    [InlineKeyboardButton("📜 Use Scroll", callback_data=f"use_scroll:{game_chat_id}:{user_id}")]
-                ]
-
-                return await message.reply(
-                    text,
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=InlineKeyboardMarkup(buttons)
-                )
-
-    await message.reply("❌ You are not part of an active game.")
-
-
-# ✅ View inventory
-@bot.on_callback_query(filters.regex(r"^inventory:(-?\d+):(\d+)$"))
-async def inventory_callback(client: Client, callback_query: CallbackQuery):
-    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
-    game = games.get(chat_id)
-    if not game:
-        return await callback_query.answer("❌ Game not found", show_alert=True)
-
-    for player in game["players"]:
-        if player.get("id") == user_id:
-            shield = player.get("shield", 0)
-            scroll = player.get("scroll", 0)
-
-            inventory_text = (
-                f"🎒 <b>Your Inventory</b>\n"
-                f"🛡 Shield: <b>{shield}</b> {'🟢 Active' if player.get('shield_active') else ''}\n"
-                f"📜 Scroll: <b>{scroll}</b> {'🟢 Active' if player.get('scroll_active') else ''}"
-            )
-
-            return await callback_query.message.edit_text(
-                inventory_text,
-                parse_mode=ParseMode.HTML,
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back", callback_data=f"profile_back:{chat_id}:{user_id}")]
-                ])
-            )
-
-    await callback_query.answer("❌ Player not found", show_alert=True)
-
-
-# # ✅ Show user profile (with fallback if not in game)
-@bot.on_callback_query(filters.regex(r"^show_profile$"))
-async def show_profile_callback(client: Client, callback_query: CallbackQuery):
-    await show_profile(client, callback_query.message)
-    
-async def show_profile(client, message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id if message.from_user else None
-
-    game = games.get(chat_id)
-    if not game:
-        # 🔁 Fallback: No active game
-        text = "👤 Profile:\n(No active game)"
-        buttons = [[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]
-        return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
-
-    # 🔍 Search for player in the game
-    player = next((p for p in game.get("players", []) if p.get("id") == user_id), None)
-    if player:
-        text = f"👤 Profile of {player['name']}"
-        buttons = [
-            [InlineKeyboardButton("🎒 Inventory", callback_data=f"inventory:{chat_id}:{user_id}")],
-            [InlineKeyboardButton("🔙 Back", callback_data=f"profile_back:{chat_id}:{user_id}")]
-        ]
-        return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
-
-    # ❌ Player not found in game
-    text = "❌ Player not found in the current game."
-    buttons = [[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]
-    return await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
-
-
-# 🔁 Callback to go back to profile from inventory
-@bot.on_callback_query(filters.regex(r"^profile_back:(-?\d+):(\d+)$"))
-async def back_to_profile(client: Client, callback_query: CallbackQuery):
-    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
-    game = games.get(chat_id)
+    game = games.get(message.chat.id)
 
     if game:
-        player = next((p for p in game.get("players", []) if p.get("id") == user_id), None)
-        if player:
-            # 👤 Go back to profile
-            return await show_profile(client, callback_query.message)
+        player = next((p for p in game["players"] if p["id"] == user_id), None)
+    else:
+        player = users.get(str(user_id))  # fallback for outside-game profile
 
-    # ⛔ Fallback: game or player not found
-    text = "👤 Profile:\n(No active game or user not found)"
-    buttons = [[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]
-    return await callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    if not player:
+        await message.reply("❌ Profile not found.")
+        return
 
-@bot.on_callback_query(filters.regex(r"^main_menu$"))
-async def main_menu_callback(client, callback_query):
-    await callback_query.message.edit_text(
-        "🏠 Main Menu",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("▶️ Start Game", callback_data="startgame")],
-            [InlineKeyboardButton("👤 Profile", callback_data="show_profile")],  # <-- fixed here
-        ])
+    username = player.get("name", message.from_user.mention)
+    shield = player.get("shield", 0)
+    scroll = player.get("scroll", 0)
+    total_votes = player.get("votes", 0)
+    eliminated = player.get("eliminated", False)
+
+    profile_text = (
+        f"👤 <b>Profile:</b> {username}\n"
+        f"🛡️ Shield: {shield}\n"
+        f"📜 Scroll: {scroll}\n"
+        f"🗳️ Total Votes Received: {total_votes}\n"
+        f"💀 Status: {'Eliminated' if eliminated else 'Alive'}"
     )
 
-    
+    await message.reply(profile_text, parse_mode=.HTML,)
 
-# ✅ Use shield (1-time defense)
-@bot.on_callback_query(filters.regex(r"^use_shield:(-?\d+):(\d+)$"))
-async def use_shield(client: Client, callback_query: CallbackQuery):
-    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
-    if callback_query.from_user.id != user_id:
-        return await callback_query.answer("🚫 Not your profile", show_alert=True)
 
-    game = games.get(chat_id)
+# ✅ Show inventory
+@bot.on_message(filters.command("inventory"))
+async def view_inventory(_, message):
+    user_id = message.from_user.id
+    game = games.get(message.chat.id)
+
     if not game:
-        return await callback_query.answer("❌ Game not found", show_alert=True)
+        await message.reply("❌ You are not in a game.")
+        return
 
-    for player in game["players"]:
-        if player["id"] == user_id:
-            if player.get("shield", 0) > 0:
-                if player.get("shield_active", False):
-                    return await callback_query.answer("🛡 Already active!", show_alert=True)
-                player["shield"] -= 1
-                player["shield_active"] = True
-                return await callback_query.answer("🛡 Shield activated! You'll block the next vote.", show_alert=True)
-            else:
-                return await callback_query.answer("⚠️ No shields left!", show_alert=True)
+    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    if not player:
+        await message.reply("❌ You are not a participant.")
+        return
+
+    inventory_text = (
+        f"🎒 <b>Your Inventory</b>\n"
+        f"🛡️ Shield: {player.get('shield', 0)}\n"
+        f"📜 Scroll: {player.get('scroll', 0)}"
+    )
+    await message.reply(inventory_text, parse_mode=.HTML,)
+
+
+# ✅ Use shield (1-time vote block)
+@bot.on_message(filters.command("use_shield"))
+async def use_shield(_, message):
+    user_id = message.from_user.id
+    game = games.get(message.chat.id)
+
+    if not game:
+        await message.reply("❌ You are not in a game.")
+        return
+
+    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    if not player:
+        await message.reply("❌ You are not a participant.")
+        return
+
+    if player.get("eliminated"):
+        await message.reply("💀 You are eliminated and cannot use items.")
+        return
+
+    if player.get("shield", 0) <= 0:
+        await message.reply("❌ You don’t have a shield!")
+        return
+
+    if player.get("shield_active", False):
+        await message.reply("🛡️ Shield already active!")
+        return
+
+    player["shield"] -= 1
+    player["shield_active"] = True
+
+    await message.reply("🛡️ Shield activated! It will protect you from one vote.")
 
 
 # ✅ Use scroll (1-time double vote)
-@bot.on_callback_query(filters.regex(r"^use_scroll:(-?\d+):(\d+)$"))
-async def use_scroll(client: Client, callback_query: CallbackQuery):
-    chat_id, user_id = map(int, callback_query.data.split(":")[1:])
-    if callback_query.from_user.id != user_id:
-        return await callback_query.answer("🚫 Not your profile", show_alert=True)
+@bot.on_message(filters.command("use_scroll"))
+async def use_scroll(_, message):
+    user_id = message.from_user.id
+    game = games.get(message.chat.id)
 
-    game = games.get(chat_id)
     if not game:
-        return await callback_query.answer("❌ Game not found", show_alert=True)
+        await message.reply("❌ You are not in a game.")
+        return
 
-    for player in game["players"]:
-        if player["id"] == user_id:
-            if player.get("scroll", 0) > 0:
-                if player.get("scroll_active", False):
-                    return await callback_query.answer("📜 Already active!", show_alert=True)
-                player["scroll"] -= 1
-                player["scroll_active"] = True
-                return await callback_query.answer("📜 Scroll activated! Your next vote is doubled.", show_alert=True)
-            else:
-                return await callback_query.answer("⚠️ No scrolls left!", show_alert=True)
+    player = next((p for p in game["players"] if p["id"] == user_id), None)
+    if not player:
+        await message.reply("❌ You are not a participant.")
+        return
+
+    if player.get("eliminated"):
+        await message.reply("💀 You are eliminated and cannot use items.")
+        return
+
+    if player.get("scroll", 0) <= 0:
+        await message.reply("❌ You don’t have a scroll!")
+        return
+
+    if player.get("scroll_active", False):
+        await message.reply("📜 Scroll already active!")
+        return
+
+    player["scroll"] -= 1
+    player["scroll_active"] = True
+
+    await message.reply("📜 Scroll activated! Your next vote will count as 2 votes.")
+
+
+
 
 # /buy command
 @bot.on_message(filters.command("buy") & filters.private)
