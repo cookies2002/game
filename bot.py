@@ -31,6 +31,14 @@ def save_players(players):
     with open(PLAYER_DB, "w") as f:
         json.dump(players, f, indent=2)
 
+def grant_power(user_id, username, power_type, amount=1):
+    player = get_player(user_id, username)
+    if power_type == "scroll":
+        player["scroll"] += amount
+    elif power_type == "shield":
+        player["shield"] += amount
+    update_player(user_id, player)
+
 def get_player(user_id, username):
     players = load_players()
     if str(user_id) not in players:
@@ -830,13 +838,7 @@ async def allow_power(client, message: Message):
     except ValueError:
         await message.reply("⚠️ Usage: <code>/allow user_id power_name</code>", parse_mode=ParseMode.HTML)
 
-def grant_power(user_id, username, power_type, amount=1):
-    player = get_player(user_id, username)
-    if power_type == "scroll":
-        player["scroll"] += amount
-    elif power_type == "shield":
-        player["shield"] += amount
-    update_player(user_id, player)
+
     
 
 
