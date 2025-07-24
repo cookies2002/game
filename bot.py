@@ -658,7 +658,7 @@ async def team_status(client, message: Message):
         "<b>😈 Villain Team Members:</b>\n" + villain_text
     )
 
-    await message.reply(msg, parse_mode="HTML", disable_web_page_preview=True)
+    await message.reply(msg, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
 
 
 # ✅ Show profile
