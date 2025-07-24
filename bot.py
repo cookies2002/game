@@ -582,24 +582,27 @@ async def check_game_end(message):
     alive_villains = []
 
     for user_id, data in players.items():
-        if data["status"] == "alive":
-            team = data.get("team", None)
-            if team == "fairy":
+        if data.get("status") == "alive":
+            if data.get("team") == "fairy":
                 alive_fairies.append(user_id)
-            elif team == "villain":
+            elif data.get("team") == "villain":
                 alive_villains.append(user_id)
 
-    # Check if game should end
-    if not alive_fairies:
-        await message.reply("😈 Villain Team wins the game!")
-        game["status"] = "ended"
-        return True
-    elif not alive_villains:
-        await message.reply("🧚 Fairy Team wins the game!")
+    # 🧚 Fairy team wins if no alive villains
+    if len(alive_villains) == 0 and len(alive_fairies) > 0:
+        await message.reply("🎉 *Fairy Team Wins the Game!* 🧚", parse_mode="Markdown")
         game["status"] = "ended"
         return True
 
-    return False  # Game continues
+    # 😈 Villain team wins if no alive fairies
+    if len(alive_fairies) == 0 and len(alive_villains) > 0:
+        await message.reply("💀 *Villain Team Wins the Game!* 😈", parse_mode="Markdown")
+        game["status"] = "ended"
+        return True
+
+    # Game continues
+    return False
+
 
 
 @bot.on_message(filters.command("join_fairy") & filters.group)
