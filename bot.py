@@ -784,7 +784,10 @@ async def buy_menu(client, message: Message):
         "🧾 Admin will verify and activate your power.\n\n"
         "⚠️ <i>Send screenshot only after payment!</i>"
     )
-    await message.reply(text, parse_mode=ParseMode.HTML)
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Contact Admin", url="https://t.me/YourAdminUsername")]
+    ])
+    await message.reply(text, reply_markup=buttons, parse_mode=ParseMode.HTML)
 
 @bot.on_message(filters.private & filters.photo)
 async def handle_payment_screenshot(client, message: Message):
