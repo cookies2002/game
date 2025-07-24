@@ -841,95 +841,37 @@ async def allow_power(client, message: Message):
 
     except ValueError:
         await message.reply("⚠️ Usage: <code>/allow user_id power_name</code>", parse_mode=ParseMode.HTML)
-
-
     
-
-
-    
-# /leaderboard
-@bot.on_message(filters.command("leaderboard"))
-async def global_leaderboard(client, message: Message):
-    await message.reply("🌍 Global Leaderboard\n1. PlayerA - 100 XP\n2. PlayerB - 88 XP")
-
-# /myleaderboard
-@bot.on_message(filters.command("myleaderboard"))
-async def local_leaderboard(client, message: Message):
-    await message.reply("🏆 Group Leaderboard\n1. You - 42 XP\n2. Friend - 39 XP")
-
-# /help
-@bot.on_message(filters.command("help"))
-async def help_menu(client, message: Message):
-    help_text = """
-<b>🧚 Welcome to Fairy vs Villain!</b>
-
-<b>🎲 How to Play:</b>
-- Players join the game lobby using <code>/join</code>.
-- When minimum 4 players have joined, roles are assigned randomly:
-  Fairies, Villains, and Commoners.
-- Fairies must identify and eliminate Villains.
-- Villains try to secretly eliminate Fairies and Commoners.
-- Commoners support Fairies by voting wisely.
-- Use your unique powers wisely with <code>/usepower</code>.
-- Vote to eliminate suspicious players with <code>/vote @username</code>.
-- Earn XP and coins by playing, using powers, and winning rounds.
-- Upgrade your powers using coins with <code>/upgrade</code> to gain advantage.
-
-<b>📜 Commands:</b>
-/startgame — Create a new game lobby in this group  
-/join — Join the current game lobby  
-/leave — Leave the lobby before game starts  
-/end — End the current game  
-/usepower — Use your secret special power  
-/vote — Vote to eliminate a player (example: /vote @username)  
-/upgrade — Upgrade your powers using XP and coins  
-/shop — View and buy items with coins  
-/myxp — Check your XP and coin balance  
-/profile — View your role, stats, and power info  
-/stats — See current game status and alive players  
-/leaderboard — View global top players  
-/myleaderboard — View this group's top players  
-/help — Show this help message
-
-<b>📖 Rules:</b>
-- Minimum 4 players, maximum 15 per game.  
-- Fairies win by eliminating all Villains.  
-- Villains win by outnumbering Fairies.  
-- Commoners help Fairies by voting carefully.  
-- Use powers carefully; some have cooldowns or limits.  
-- Voting majority eliminates a player each round.  
-- Dead players cannot vote or use powers.
-
-<b>💡 Tips:</b>
-- Always communicate and watch for suspicious behavior.  
-- Use <code>/usepower</code> privately to turn the tide.  
-- Save coins and XP to upgrade powers and items.  
-- Stay active and strategize with your team.
-
-Good luck, have fun, and may the best team win! 🧚‍♀️👹
-"""
-    await message.reply_text(help_text, parse_mode=ParseMode.HTML)
-    
-# /end
+# /end - Ends the current game
 @bot.on_message(filters.command("end"))
 async def end_game(client, message: Message):
     chat_id = message.chat.id
     if chat_id in games:
         del games[chat_id]
-        await message.reply("🛑 Game ended. Use /startgame to play again.")
+        await message.reply(
+            "🛑 Game has been ended by the host.\nUse /startgame to begin a new adventure!"
+        )
     else:
-        await message.reply("⚠️ No game running to end.")
+        await message.reply("⚠️ No active game found in this chat.")
 
-# /leave
+# /leave - Player leaves the lobby
 @bot.on_message(filters.command("leave"))
 async def leave_lobby(client, message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
+    user_name = message.from_user.mention
+
     if chat_id in lobbies:
+        original_count = len(lobbies[chat_id])
         lobbies[chat_id] = [p for p in lobbies[chat_id] if p["id"] != user_id]
-        await message.reply("👋 You left the lobby.")
+
+        if len(lobbies[chat_id]) < original_count:
+            await message.reply(f"👋 {user_name}, you have left the lobby.")
+        else:
+            await message.reply("❌ You are not part of the current lobby.")
     else:
-        await message.reply("❌ No lobby to leave.")
+        await message.reply("🚫 No lobby exists in this chat to leave.")
+
 
 print("🚀 Bot started!")
 bot.run()
