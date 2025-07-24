@@ -411,7 +411,7 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
 
 
 #vote
-@bot.on_message(filters.command("vote") & filters.private)
+@bot.on_message(filters.command("vote"))
 async def vote_player(client, message: Message):
     chat_id = message.chat.id
     voter_id = message.from_user.id
@@ -458,14 +458,14 @@ async def vote_player(client, message: Message):
         target["shield_active"] = False  # Consume shield
         return await message.reply("🛡 The player blocked your vote with a shield!")
 
-    # 🧮 Calculate vote weight
+    # 🧮 Initial vote weight
 vote_weight = 1
 
 # 👻 Ghost logic (one-time vote after death)
 if voter.get("role") == "Ghost" and not voter.get("alive"):
     if voter.get("ghost_voted"):
         await message.reply("👻 You already used your Ghost vote!")
-        return  # 👈 this return is now valid inside function
+        return
     voter["ghost_voted"] = True
 
 # 😵‍💫 Shadow blinded (vote = 0)
@@ -509,37 +509,37 @@ for vote in votes.values():
 # 🧾 Store back to game
 game["vote_counts"] = vote_counts
 
-
-    # 🧮 Calculate total possible voting power (for majority)
-    total_votes = 0
-    for p in players:
-        if p.get("alive") and not p.get("vote_blocked") and not p.get("silenced") and not p.get("invisible"):
-            if p.get("blinded"):
-                continue
-            if p.get("role") == "Village Elder" and p.get("double_vote"):
-                total_votes += 2
-            else:
-                total_votes += 1
-        elif p.get("role") == "Ghost" and not p.get("alive") and not p.get("ghost_voted"):
+# 🧮 Calculate total possible voting power (for majority)
+total_votes = 0
+for p in players:
+    if p.get("alive") and not p.get("vote_blocked") and not p.get("silenced") and not p.get("invisible"):
+        if p.get("blinded"):
+            continue
+        if p.get("role") == "Village Elder" and p.get("double_vote"):
+            total_votes += 2
+        else:
             total_votes += 1
+    elif p.get("role") == "Ghost" and not p.get("alive") and not p.get("ghost_voted"):
+        total_votes += 1
 
-    majority = total_votes // 2 + 1
+majority = total_votes // 2 + 1
 
-    # 💀 Check for elimination
-    for target_id, count in vote_counts.items():
-        if count >= majority:
-            eliminated = next((p for p in players if p["id"] == target_id), None)
-            if eliminated:
-                eliminated["alive"] = False
-                await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
+# 💀 Check for elimination
+for target_id, count in vote_counts.items():
+    if count >= majority:
+        eliminated = next((p for p in players if p["id"] == target_id), None)
+        if eliminated:
+            eliminated["alive"] = False
+            await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
 
-                # Reset votes
-                game["votes"] = {}
-                for p in players:
-                    p["votes"] = 0
+            # Reset votes
+            game["votes"] = {}
+            for p in players:
+                p["votes"] = 0
 
-                await check_game_end(client, chat_id)
-            break
+            await check_game_end(client, chat_id)
+        break
+
 
 
 async def check_game_end(client, chat_id):
