@@ -430,8 +430,8 @@ async def handle_usepower_callback(client, callback_query: CallbackQuery):
 
     elif role == "Cursed One":
         target["cursed"] = True
-        power_text = f"🧿 {target['name']} is cursed and will lose XP next round."
-        blocked_alert = f"🧿 You were cursed by the Cursed One."
+        power_text = f"🧿 {target['name']} has been marked by the Half-Blood Villain. Their strength will fade in the next round..."
+        blocked_alert = f"🧿 The Half-Blood Villain has cursed you. Darkness creeps into your soul..."
 
     elif role == "Fairy Spy":
         info = "Villain" if target.get("team") == "Villain" else "Fairy or Commoner"
