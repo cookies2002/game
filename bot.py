@@ -806,19 +806,18 @@ async def allow_power(client, message: Message):
         power_type = power_name.lower()
 
         if power_type not in ["shield", "scroll", "vip"]:
-            await message.reply("❌ Invalid power name. Use: shield, scroll, vip.")
+            await message.reply("❌ Invalid power. Use: shield, scroll, or vip.")
             return
 
-        username = f"user_{user_id}"  # Dummy name fallback (you can fetch actual username if needed)
+        username = f"user_{user_id}"
 
         if power_type == "vip":
-            grant_power(user_id, username, "shield", amount=999)  # Grant unlimited shields
+            grant_power(user_id, username, "shield", amount=999)
         else:
-            grant_power(user_id, username, power_type, amount=1)  # Grant 1 scroll or shield
+            grant_power(user_id, username, power_type, amount=1)
 
         await message.reply(f"✅ Power '{power_type}' granted to user {user_id}.")
 
-        # Notify user via DM
         try:
             await client.send_message(
                 user_id,
@@ -826,13 +825,11 @@ async def allow_power(client, message: Message):
                 parse_mode=ParseMode.HTML,
             )
         except Exception:
-            await message.reply("⚠️ User could not be notified in DM (maybe privacy settings).")
+            await message.reply("⚠️ Could not notify user (privacy settings).")
 
     except ValueError:
-        await message.reply(
-            "⚠️ Usage: <code>/allow user_id power_name</code>",
-            parse_mode=ParseMode.HTML,
-        )
+        await message.reply("⚠️ Usage: <code>/allow user_id power_name</code>", parse_mode=ParseMode.HTML)
+
 
 
 
