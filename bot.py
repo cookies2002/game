@@ -577,28 +577,29 @@ async def vote_player(client, message: Message):
             break
 
 
-async def check_game_end(client, chat_id):
-    game = games.get(chat_id)
-    if not game:
-        return
+async def check_game_end(message):
+    alive_fairies = []
+    alive_villains = []
 
-    players = game["players"]
-    fairies = [p for p in players if p.get("joined_team") == "Fairy" and p.get("alive")]
-    villains = [p for p in players if p.get("joined_team") == "Villain" and p.get("alive")]
+    for user_id, data in players.items():
+        if data["status"] == "alive":
+            team = data.get("team", None)
+            if team == "fairy":
+                alive_fairies.append(user_id)
+            elif team == "villain":
+                alive_villains.append(user_id)
 
-    if not fairies and villains:
-        result = "😈 <b>Villain Team Wins!</b>"
-    elif not villains and fairies:
-        result = "🧚 <b>Fairy Team Wins!</b>"
-    elif not fairies and not villains:
-        result = "☠️ <b>All players are dead. No one wins!</b>"
-    else:
-        return
+    # Check if game should end
+    if not alive_fairies:
+        await message.reply("😈 Villain Team wins the game!")
+        game["status"] = "ended"
+        return True
+    elif not alive_villains:
+        await message.reply("🧚 Fairy Team wins the game!")
+        game["status"] = "ended"
+        return True
 
-    await client.send_message(chat_id, result, parse_mode="html")
-    del games[chat_id]
-
-
+    return False  # Game continues
 
 
 @bot.on_message(filters.command("join_fairy") & filters.group)
