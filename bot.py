@@ -6,6 +6,7 @@ from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineK
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pyrogram.enums import ParseMode
+from pyrogram import enums
 
 load_dotenv()
 
