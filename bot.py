@@ -672,18 +672,28 @@ async def team_status(client, message: Message):
 @bot.on_message(filters.command("profile") & filters.private)
 async def show_profile(_, message):
     user_id = message.from_user.id
-    game = games.get(message.chat.id)
+    chat_id = message.chat.id
 
+    player = None
+
+    # 1️⃣ Check if game exists in the current group chat
+    game = games.get(chat_id)
     if game:
-        player = next((p for p in game["players"] if p["id"] == user_id), None)
-    else:
-        player = user_data.get(str(user_id)) or user_data.get(user_id)  # ✅ fixed here
+        # Check if user is in the game player list
+        for p in game.get("players", []):
+            if p["id"] == user_id:
+                player = p
+                break
+
+    # 2️⃣ If not found in current game, check global user_data
+    if not player:
+        player = user_data.get(str(user_id)) or user_data.get(user_id)
 
     if not player:
-        await message.reply("❌ Profile not found.")
+        await message.reply("❌ Profile not found. Join a game using /join.")
         return
 
-    username = player.get("name", message.from_user.mention)
+    username = player.get("name") or message.from_user.mention
     shield = player.get("shield", 0)
     scroll = player.get("scroll", 0)
     total_votes = player.get("votes", 0)
@@ -698,6 +708,7 @@ async def show_profile(_, message):
     )
 
     await message.reply(profile_text, parse_mode=ParseMode.HTML)
+
 
 
 
