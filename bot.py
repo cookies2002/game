@@ -81,6 +81,7 @@ async def start_game(client, message: Message):
     lobbies[chat_id] = []
     await message.reply("🎮 Game lobby created! Players use /join to enter. Minimum 4 players required.")
 
+    
 @bot.on_message(filters.command("join"))
 async def join_game(client: Client, message: Message):
     chat_id = message.chat.id
@@ -106,32 +107,30 @@ async def join_game(client: Client, message: Message):
         await asyncio.sleep(10)
         return await msg.delete()
 
-    # Add player quickly first
-player_data = {
-    "id": user.id,
-    "name": user.first_name,
-    "username": user.username or f"id{user.id}",
-    "alive": True,
-    "role": None,
-    "type": None,
-    "xp": 0,
-    "coins": 0,
-    "level": 1,
-    "votes": 0,
-    "shield": 0,
-    "scroll": 0,
-    "eliminated": False,
-    "shield_active": False,
-    "scroll_active": False,
-}
+    # ✅ Add player
+    player_data = {
+        "id": user.id,
+        "name": user.first_name,
+        "username": user.username or f"id{user.id}",
+        "alive": True,
+        "role": None,
+        "type": None,
+        "xp": 0,
+        "coins": 0,
+        "level": 1,
+        "votes": 0,
+        "shield": 0,
+        "scroll": 0,
+        "eliminated": False,
+        "shield_active": False,
+        "scroll_active": False,
+    }
 
-games[chat_id]["players"].append(player_data)
+    games[chat_id]["players"].append(player_data)
 
-# 🔁 Sync to user_data for /profile access anytime (use str(user_id) for consistency)
-user_data[str(user.id)] = player_data.copy()
+    # ✅ Sync to global user_data
+    user_data[str(user.id)] = player_data.copy()
 
-
-    # ✅ Quick join confirmation
     current_count = len(games[chat_id]["players"])
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
     join_msg = await message.reply(
@@ -141,7 +140,7 @@ user_data[str(user.id)] = player_data.copy()
     await asyncio.sleep(10)
     await join_msg.delete()
 
-    # 📩 DM Prompt with clickable link
+    # 🔗 DM Prompt
     dm_msg = await message.reply(
         "📩 To fully participate, please <a href='https://t.me/fairy_game_bot'>START the bot in private chat</a>. "
         "Otherwise you won't receive power instructions!",
@@ -151,7 +150,7 @@ user_data[str(user.id)] = player_data.copy()
     await asyncio.sleep(10)
     await dm_msg.delete()
 
-    # Start countdown if 4+ players
+    # ⏳ Auto-start game in 60s if enough players
     if current_count >= 4 and not games[chat_id]["started"]:
         countdown_msg = await message.reply("⏳ 60 seconds until game auto-starts. Others can still /join!")
 
@@ -170,9 +169,8 @@ user_data[str(user.id)] = player_data.copy()
         asyncio.create_task(countdown_start())
 
 
-
 async def assign_roles_and_start(client, chat_id):
-    players = games[chat_id]["players"]  # ✅ Already a list
+    players = games[chat_id]["players"]
     random.shuffle(players)
 
     total = len(players)
@@ -197,7 +195,7 @@ async def assign_roles_and_start(client, chat_id):
         player["vote"] = None
         player["joined_team"] = None
 
-        # DM Message
+        # 📨 Send role via DM
         role_msg = f"🎭 You are a {rtype} - {rname}\n\n🧙 Power: {powers.get(rname, 'None')}"
 
         if rtype == "Fairy":
@@ -222,9 +220,10 @@ async def assign_roles_and_start(client, chat_id):
         try:
             await client.send_message(player["id"], role_msg)
         except:
-            pass  # Bot can't DM if user didn't start it
+            pass  # DM fail — user didn’t start bot
 
     games[chat_id]["roles_assigned"] = True
+
 
 
 @bot.on_message(filters.command("usepower"))
@@ -676,29 +675,31 @@ async def show_profile(_, message):
 
     player = None
 
-    # 1️⃣ Check if game exists in the current group chat
+    # 1️⃣ Try to find game in the current chat (in case it's a group game)
     game = games.get(chat_id)
     if game:
-        # Check if user is in the game player list
         for p in game.get("players", []):
             if p["id"] == user_id:
                 player = p
                 break
 
-    # 2️⃣ If not found in current game, check global user_data
+    # 2️⃣ If not in group game, fallback to global user_data
     if not player:
         player = user_data.get(str(user_id)) or user_data.get(user_id)
 
+    # 3️⃣ Still not found? Send error
     if not player:
         await message.reply("❌ Profile not found. Join a game using /join.")
         return
 
+    # 4️⃣ Fetch player stats
     username = player.get("name") or message.from_user.mention
     shield = player.get("shield", 0)
     scroll = player.get("scroll", 0)
     total_votes = player.get("votes", 0)
     eliminated = player.get("eliminated", False)
 
+    # 5️⃣ Create profile message
     profile_text = (
         f"👤 <b>Profile:</b> {username}\n"
         f"🛡️ Shield: {shield}\n"
@@ -708,6 +709,7 @@ async def show_profile(_, message):
     )
 
     await message.reply(profile_text, parse_mode=ParseMode.HTML)
+
 
 
 
