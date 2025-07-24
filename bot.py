@@ -722,7 +722,7 @@ async def profile(_, message):
 🗳️ Total Votes Received: {player['votes']}
 💀 Status: {player['status']}"""
 
-    await message.reply(text, parse_mode="HTML")
+    await message.reply(text, parse_mode=ParseMode.HTML)
 
 
 
@@ -737,7 +737,7 @@ async def inventory(_, message):
 🛡 Shield: {player['shield']}
 📜 Scroll: {player['scroll']}"""
 
-    await message.reply(text, parse_mode="HTML")
+    await message.reply(text, parse_mode=ParseMode.HTML)
 
 
 # ✅ Use shield (1-time vote block)
