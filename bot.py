@@ -711,7 +711,7 @@ async def view_inventory(_, message):
         f"🛡️ Shield: {player.get('shield', 0)}\n"
         f"📜 Scroll: {player.get('scroll', 0)}"
     )
-    await message.reply(inventory_text, parse_mode=.HTML,)
+    await message.reply(inventory_text, parse_mode=ParseMode.HTML)
 
 
 # ✅ Use shield (1-time vote block)
@@ -848,7 +848,7 @@ async def allow_power(client, message: Message):
             await client.send_message(
                 user_id,
                 f"🎉 Admin approved your purchase!\n✅ Power activated: <b>{power_name.capitalize()}</b>",
-                parse_mode=.HTML,
+                parse_mode=ParseMode.HTML,
             )
         except Exception:
             await message.reply("⚠️ User could not be notified in DM (maybe privacy settings).")
