@@ -711,14 +711,12 @@ async def show_profile(_, message):
     await message.reply(profile_text, parse_mode=ParseMode.HTML)
 
 
-
-
-
 # ✅ Show inventory
 @bot.on_message(filters.command("inventory") & filters.private)
 async def view_inventory(_, message):
     user_id = message.from_user.id
-    game = games.get(message.chat.id)
+    chat_id = message.chat.id
+    game = games.get(chat_id)
 
     if not game:
         await message.reply("❌ You are not in a game.")
@@ -736,12 +734,12 @@ async def view_inventory(_, message):
     )
     await message.reply(inventory_text, parse_mode=ParseMode.HTML)
 
-
 # ✅ Use shield (1-time vote block)
 @bot.on_message(filters.command("use_shield") & filters.private)
 async def use_shield(_, message):
     user_id = message.from_user.id
-    game = games.get(message.chat.id)
+    chat_id = message.chat.id
+    game = games.get(chat_id)
 
     if not game:
         await message.reply("❌ You are not in a game.")
@@ -752,7 +750,7 @@ async def use_shield(_, message):
         await message.reply("❌ You are not a participant.")
         return
 
-    if player.get("eliminated"):
+    if player.get("eliminated", False):
         await message.reply("💀 You are eliminated and cannot use items.")
         return
 
@@ -769,12 +767,12 @@ async def use_shield(_, message):
 
     await message.reply("🛡️ Shield activated! It will protect you from one vote.")
 
-
 # ✅ Use scroll (1-time double vote)
 @bot.on_message(filters.command("use_scroll") & filters.private)
 async def use_scroll(_, message):
     user_id = message.from_user.id
-    game = games.get(message.chat.id)
+    chat_id = message.chat.id
+    game = games.get(chat_id)
 
     if not game:
         await message.reply("❌ You are not in a game.")
@@ -785,7 +783,7 @@ async def use_scroll(_, message):
         await message.reply("❌ You are not a participant.")
         return
 
-    if player.get("eliminated"):
+    if player.get("eliminated", False):
         await message.reply("💀 You are eliminated and cannot use items.")
         return
 
@@ -801,7 +799,6 @@ async def use_scroll(_, message):
     player["scroll_active"] = True
 
     await message.reply("📜 Scroll activated! Your next vote will count as 2 votes.")
-
 
 
 
