@@ -660,7 +660,7 @@ async def team_status(client, message: Message):
 
 
 # ✅ Show profile (works even outside game)
-@bot.on_message(filters.command("profile"))
+@bot.on_message(filters.command("profile") & filters.private)
 async def show_profile(_, message):
     user_id = message.from_user.id
     game = games.get(message.chat.id)
@@ -692,7 +692,7 @@ async def show_profile(_, message):
 
 
 # ✅ Show inventory
-@bot.on_message(filters.command("inventory"))
+@bot.on_message(filters.command("inventory") & filters.private)
 async def view_inventory(_, message):
     user_id = message.from_user.id
     game = games.get(message.chat.id)
@@ -715,7 +715,7 @@ async def view_inventory(_, message):
 
 
 # ✅ Use shield (1-time vote block)
-@bot.on_message(filters.command("use_shield"))
+@bot.on_message(filters.command("use_shield") & filters.private)
 async def use_shield(_, message):
     user_id = message.from_user.id
     game = games.get(message.chat.id)
@@ -748,7 +748,7 @@ async def use_shield(_, message):
 
 
 # ✅ Use scroll (1-time double vote)
-@bot.on_message(filters.command("use_scroll"))
+@bot.on_message(filters.command("use_scroll") & filters.private)
 async def use_scroll(_, message):
     user_id = message.from_user.id
     game = games.get(message.chat.id)
@@ -826,28 +826,36 @@ async def allow_power(client, message: Message):
         user_id = int(uid_str)
         power_name = power_name.lower()
 
+        # Valid powers
         if power_name not in ["shield", "scroll"]:
-            await message.reply("❌ Invalid power name. Use shield, scroll.")
+            await message.reply("❌ Invalid power name. Use: shield, scroll, vip.")
             return
 
         # Create user entry if not exists
         if user_id not in user_data:
-            user_data[user_id] = {}
+            user_data[user_id] = {"shield": 0, "scroll": 0, "vote_used": False}
 
+        # Grant powers
         if power_name == "vip":
-            user_data[user_id]["shield"] = 999  # Unlimited shields for 1 day
+            user_data[user_id]["shield"] = 999  # Unlimited shields
         else:
-            user_data[user_id][power_name] = True
+            user_data[user_id][power_name] += 1  # Add 1 shield or scroll
 
         await message.reply(f"✅ Power '{power_name}' granted to user {user_id}.")
 
-        # Notify user
+        # Notify user via DM
         try:
-            await client.send_message(user_id, f"🎉 Admin approved your purchase!\nPower '{power_name}' activated.")
-        except:
+            await client.send_message(
+                user_id,
+                f"🎉 Admin approved your purchase!\n✅ Power activated: <b>{power_name.capitalize()}</b>",
+                parse_mode=.HTML,
+            )
+        except Exception:
             await message.reply("⚠️ User could not be notified in DM (maybe privacy settings).")
+
     except ValueError:
-        await message.reply("⚠️ Usage: /allow user_id power_name")
+        await message.reply("⚠️ Usage: <code>/allow user_id power_name</code>", parse_mode=.HTML,)
+
 
 
     
