@@ -854,7 +854,7 @@ async def allow_power(client, message: Message):
             await message.reply("⚠️ User could not be notified in DM (maybe privacy settings).")
 
     except ValueError:
-        await message.reply("⚠️ Usage: <code>/allow user_id power_name</code>", parse_mode=.HTML,)
+        await message.reply("⚠️ Usage: <code>/allow user_id power_name</code>", parse_mode=ParseMode.HTML,)
 
 
 
