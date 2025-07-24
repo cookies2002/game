@@ -485,7 +485,7 @@ async def vote_player(client, message: Message):
         if voter_id in votes and not voter.get("scrolls", 0):
             return await message.reply("🛑 You already voted. Use a 📜 Scroll to vote again!")
         elif voter_id in votes:
-            voter["scrolls"] -= 1
+            voter["scroll"] -= 1
             await message.reply("📜 Scroll used! You may vote again.")
 
     if len(message.command) < 2:
@@ -506,7 +506,7 @@ async def vote_player(client, message: Message):
 
     # 🛡 Shield block
     if target.get("shield", False):
-        target["shield"] = False
+        target["shield"] -= 1
         return await message.reply("🛡 Shield protected this player from your vote!")
 
     # 🧮 Calculate vote weight
