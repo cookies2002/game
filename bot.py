@@ -19,18 +19,38 @@ bot = Client("fairy_vs_villain_bot", api_id=API_ID, api_hash=API_HASH, bot_token
 mongo = MongoClient(MONGO_URL)
 db = mongo.fairy_game
 
-DATA_FILE = "profile_db.json"
+PLAYER_DB = "players_db.json"
 
-if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r") as f:
-        user_data = json.load(f)
-else:
-    user_data = {}
+def load_players():
+    if not os.path.exists(PLAYER_DB):
+        return {}
+    with open(PLAYER_DB, "r") as f:
+        return json.load(f)
 
-def save_data():
-    with open(DATA_FILE, "w") as f:
-        json.dump(user_data, f, indent=2)
-        
+def save_players(players):
+    with open(PLAYER_DB, "w") as f:
+        json.dump(players, f, indent=2)
+
+def get_player(user_id, username):
+    players = load_players()
+    if str(user_id) not in players:
+        players[str(user_id)] = {
+            "username": username,
+            "coins": 0,
+            "shield": 0,
+            "scroll": 0,
+            "votes": 0,
+            "status": "Alive"
+        }
+        save_players(players)
+    return players[str(user_id)]
+
+def update_player(user_id, data):
+    players = load_players()
+    if str(user_id) in players:
+        players[str(user_id)].update(data)
+        save_players(players)
+            
 ADMIN_ID = 7813285237
 user_data = {}  # Store powers per user
 lobbies = {}
@@ -683,95 +703,63 @@ async def team_status(client, message: Message):
 # ✅ Show profile (works even outside game)
 @bot.on_message(filters.command("profile") & filters.private)
 async def profile(_, message):
-    user_id = str(message.from_user.id)
-    player = user_data.get(user_id)
+    user = message.from_user
+    player = get_player(user.id, user.first_name)
 
-    if not player:
-        player = {
-            "id": user_id,
-            "name": message.from_user.first_name,
-            "coins": 0,
-            "shield": 0,
-            "scroll": 0,
-        }
-        user_data[user_id] = player
-        save_data()
+    text = f"""<b>𝑭𝒂𝒊𝒓𝒚 𝑻𝒓𝒊𝒖𝒎𝒑𝒉 𝑮𝒂𝒎𝒆:</b>
+👤 Profile: {user.first_name}
+💰 Coins: {player['coins']}
+🛡 Shield: {player['shield']}
+📜 Scroll: {player['scroll']}
+🗳️ Total Votes Received: {player['votes']}
+💀 Status: {player['status']}"""
 
-    text = (
-        f"👤 Profile: {player['name']}\n"
-        f"💰 Coins: {player.get('coins', 0)}\n"
-        f"🛡 Shield: {player.get('shield', 0)}\n"
-        f"📜 Scroll: {player.get('scroll', 0)}"
-    )
-    await message.reply(text)
+    await message.reply(text, parse_mode="HTML")
+
 
 
 # ✅ Show inventory
 @bot.on_message(filters.command("inventory") & filters.private)
 async def inventory(_, message):
-    user_id = str(message.from_user.id)
-    player = user_data.get(user_id)
+    user = message.from_user
+    player = get_player(user.id, user.first_name)
 
-    if not player:
-        await message.reply("❌ You don't have a profile. Send /profile first.")
-        return
+    text = f"""<b>𝑭𝒂𝒊𝒓𝒚 𝑻𝒓𝒊𝒖𝒎𝒑𝒉 𝑮𝒂𝒎𝒆:</b>
+🎒 Inventory:
+🛡 Shield: {player['shield']}
+📜 Scroll: {player['scroll']}"""
 
-    text = (
-        f"🎒 Inventory:\n"
-        f"🛡 Shield: {player.get('shield', 0)}\n"
-        f"📜 Scroll: {player.get('scroll', 0)}"
-    )
-    await message.reply(text)
+    await message.reply(text, parse_mode="HTML")
+
 
 # ✅ Use shield (1-time vote block)
 @bot.on_message(filters.command("use_shield") & filters.private)
 async def use_shield(_, message):
-    user_id = str(message.from_user.id)
-    player = user_data.get(user_id)
+    user = message.from_user
+    player = get_player(user.id, user.first_name)
 
-    if not player:
-        await message.reply("❌ You don't have a profile. Send /profile first.")
-        return
-
-    if player.get("shield", 0) <= 0:
+    if player["shield"] <= 0:
         await message.reply("❌ You don’t have a shield!")
         return
 
-    if player.get("shield_active", False):
-        await message.reply("🛡 Shield already active!")
-        return
-
     player["shield"] -= 1
-    player["shield_active"] = True
-    save_data()
-
-    await message.reply("🛡 Shield activated! You'll be protected from the next elimination.")
+    update_player(user.id, {"shield": player["shield"]})
+    await message.reply("🛡️ Shield activated!")
     
 
 # ✅ Use scroll (1-time double vote)
 @bot.on_message(filters.command("use_scroll") & filters.private)
 async def use_scroll(_, message):
-    user_id = str(message.from_user.id)
-    player = user_data.get(user_id)
+    user = message.from_user
+    player = get_player(user.id, user.first_name)
 
-    if not player:
-        await message.reply("❌ You don't have a profile. Send /profile first.")
-        return
-
-    if player.get("scroll", 0) <= 0:
+    if player["scroll"] <= 0:
         await message.reply("❌ You don’t have a scroll!")
         return
 
-    if player.get("scroll_active", False):
-        await message.reply("📜 Scroll already active!")
-        return
-
     player["scroll"] -= 1
-    player["scroll_active"] = True
-    save_data()
-
-    await message.reply("📜 Scroll activated! Your next vote will count as 2 votes.")
-
+    update_player(user.id, {"scroll": player["scroll"]})
+    await message.reply("✅ Scroll power activated!")
 
 # /buy command
 @bot.on_message(filters.command("buy") & filters.private)
@@ -815,37 +803,36 @@ async def allow_power(client, message: Message):
     try:
         _, uid_str, power_name = message.text.split(maxsplit=2)
         user_id = int(uid_str)
-        power_name = power_name.lower()
+        power_type = power_name.lower()
 
-        # Valid powers
-        if power_name not in ["shield", "scroll"]:
+        if power_type not in ["shield", "scroll", "vip"]:
             await message.reply("❌ Invalid power name. Use: shield, scroll, vip.")
             return
 
-        # Create user entry if not exists
-        if user_id not in user_data:
-            user_data[user_id] = {"shield": 0, "scroll": 0, "vote_used": False}
+        username = f"user_{user_id}"  # Dummy name fallback (you can fetch actual username if needed)
 
-        # Grant powers
-        if power_name == "vip":
-            user_data[user_id]["shield"] = 999  # Unlimited shields
+        if power_type == "vip":
+            grant_power(user_id, username, "shield", amount=999)  # Grant unlimited shields
         else:
-            user_data[user_id][power_name] += 1  # Add 1 shield or scroll
+            grant_power(user_id, username, power_type, amount=1)  # Grant 1 scroll or shield
 
-        await message.reply(f"✅ Power '{power_name}' granted to user {user_id}.")
+        await message.reply(f"✅ Power '{power_type}' granted to user {user_id}.")
 
         # Notify user via DM
         try:
             await client.send_message(
                 user_id,
-                f"🎉 Admin approved your purchase!\n✅ Power activated: <b>{power_name.capitalize()}</b>",
+                f"🎉 Admin approved your purchase!\n✅ Power activated: <b>{power_type.capitalize()}</b>",
                 parse_mode=ParseMode.HTML,
             )
         except Exception:
             await message.reply("⚠️ User could not be notified in DM (maybe privacy settings).")
 
     except ValueError:
-        await message.reply("⚠️ Usage: <code>/allow user_id power_name</code>", parse_mode=ParseMode.HTML,)
+        await message.reply(
+            "⚠️ Usage: <code>/allow user_id power_name</code>",
+            parse_mode=ParseMode.HTML,
+        )
 
 
 
