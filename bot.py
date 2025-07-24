@@ -538,32 +538,95 @@ async def vote_player(client, message: Message):
                 await check_game_end(client, chat_id)
             break
 
+async def vote_player(client, message):
+    chat_id = message.chat.id
+    from_user = message.from_user
+    game = games.get(chat_id)
 
+    if not game or not game.get("players") or not game.get("started"):
+        await message.reply("⚠️ Game not started yet.")
+        return
+
+    if not message.reply_to_message or not message.reply_to_message.from_user:
+        await message.reply("⚠️ Reply to a player's message to vote.")
+        return
+
+    voter = next((p for p in game["players"] if p["user_id"] == from_user.id), None)
+    target_user = message.reply_to_message.from_user
+    target = next((p for p in game["players"] if p["user_id"] == target_user.id), None)
+
+    if not voter or not voter.get("alive"):
+        await message.reply("❌ You're not in the game or already dead.")
+        return
+
+    if not target or not target.get("alive"):
+        await message.reply("❌ You can't vote for a dead player.")
+        return
+
+    if voter.get("voted"):
+        if voter.get("scrolls", 0) > 0:
+            voter["scrolls"] -= 1
+            await message.reply("📜 Used a scroll to vote again!")
+        else:
+            await message.reply("⚠️ You already voted. Buy a scroll to vote again.")
+            return
+    else:
+        voter["voted"] = True
+
+    if target.get("shield", False):
+        await message.reply("🛡 Shield protected this player from vote!")
+        target["shield"] = False  # Remove shield after use
+        return
+
+    if "votes" not in target:
+        target["votes"] = 0
+
+    target["votes"] += 1
+
+    await message.reply(f"✅ Voted to eliminate {target_user.first_name}!")
+
+    await check_game_end(client, chat_id)
 
 
 async def check_game_end(client, chat_id):
     game = games.get(chat_id)
-    if not game or "players" not in game:
+    if not game or not game.get("players"):
         return
 
-    # Remove dead players from teams
-    alive_fairies = [p for p in game["players"] if p.get("alive") and p.get("joined_team") == "Fairy"]
-    alive_villains = [p for p in game["players"] if p.get("alive") and p.get("joined_team") == "Villain"]
+    # Eliminate player with highest votes (once per round)
+    alive_players = [p for p in game["players"] if p.get("alive")]
+    if not alive_players:
+        return
 
-    if not alive_fairies and alive_villains:
+    max_votes = max((p.get("votes", 0) for p in alive_players), default=0)
+    voted_out = [p for p in alive_players if p.get("votes", 0) == max_votes and max_votes > 0]
+
+    if voted_out:
+        eliminated = voted_out[0]  # pick the first with highest vote
+        eliminated["alive"] = False
+        await client.send_message(chat_id, f"❌ {eliminated['name']} has been eliminated with {max_votes} votes.")
+
+    # Clear votes for next round
+    for p in game["players"]:
+        p["votes"] = 0
+        p["voted"] = False
+
+    # Team check
+    fairies_alive = [p for p in game["players"] if p["joined_team"] == "Fairy" and p.get("alive")]
+    villains_alive = [p for p in game["players"] if p["joined_team"] == "Villain" and p.get("alive")]
+
+    if not fairies_alive and villains_alive:
         winner_text = "😈 <b>Villain Team Wins!</b>"
-    elif not alive_villains and alive_fairies:
+    elif not villains_alive and fairies_alive:
         winner_text = "🧚 <b>Fairy Team Wins!</b>"
-    elif not alive_fairies and not alive_villains:
-        winner_text = "☠️ <b>All players are dead. No team wins.</b>"
+    elif not fairies_alive and not villains_alive:
+        winner_text = "☠️ <b>All players are dead. No one wins!</b>"
     else:
-        return  # Game still going
+        return  # Game still continues
 
-    # Game ended, announce and reset
-    await client.send_message(chat_id, winner_text, parse_mode="HTML")
+    await client.send_message(chat_id, winner_text, parse_mode="html")
     del games[chat_id]
 
-    # Game continues
 
 
 @bot.on_message(filters.command("join_fairy") & filters.group)
