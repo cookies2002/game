@@ -875,6 +875,38 @@ async def leave_lobby(client, message: Message):
     else:
         await message.reply("🚫 No lobby exists in this chat to leave.")
 
-
+@bot.on_message(filters.command("help"))
+async def help_command(client, message):
+    await message.reply(
+        "**🕹 How to Play Madara's Team Battle Game:**\n\n"
+        "**🎯 Goal:**\n"
+        "Villains 🦹‍♂️ must eliminate all Fairies 🧚\n"
+        "Fairies 🧚 must identify and vote out all Villains 🦹‍♂️\n"
+        "Use powers, teamwork, and strategy to win!\n\n"
+        "**👣 Step-by-Step Guide:**\n"
+        "`/startgame` – Start a new game session.\n"
+        "`/join` – Players join the game.\n"
+        "`assignroles` – Bot assigns random roles (Fairy or Villain).\n"
+        "`/vote` – Vote who you think is the Villain (1 vote per round).\n"
+        "`/usepower` – Use your special power if your role allows it.\n"
+        "`/team_status` – See which players are on which team (if visible).\n"
+        "`/profile` – Check your stats, wins/losses.\n"
+        "`/inventory` – View your items (Shield, Scroll, etc).\n"
+        "`/use_shield` – Protect yourself from getting voted out.\n"
+        "`/use_scroll` – Reveal the role of another player secretly.\n"
+        "`/buy` – Use coins to buy power items from the shop.\n"
+        "`/leave` – Leave the current game session.\n"
+        "`/end` – Admins can end and reset the game manually.\n\n"
+        "**💡 Tips to Win:**\n"
+        "• Villains must act innocent and secretly eliminate Fairies.\n"
+        "• Fairies must observe carefully and vote wisely.\n"
+        "• Use items like Scroll to check roles, Shield to defend.\n"
+        "• Communicate and build trust with teammates.\n\n"
+        "**🏆 Winning Condition:**\n"
+        "- Villains win if they eliminate all Fairies.\n"
+        "- Fairies win if they eliminate all Villains.\n\n"
+        "⚔️ May the smartest team win! Use /startgame to begin."
+    )
+    
 print("🚀 Bot started!")
 bot.run()
