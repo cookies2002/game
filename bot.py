@@ -427,10 +427,9 @@ async def vote_player(client, message: Message):
     if not voter or (not voter["alive"] and not (voter.get("role") == "Ghost" and not voter.get("ghost_voted"))):
         return await message.reply("❌ You are not in the game or already eliminated.")
 
-    # Restriction checks
+    # 🛑 Restriction checks
     if voter.get("silenced"):
         return await message.reply("🔇 You are silenced and cannot vote this round!")
-
     if voter.get("vote_blocked"):
         return await message.reply("😨 You are blocked and cannot vote this round!")
 
@@ -439,7 +438,7 @@ async def vote_player(client, message: Message):
 
     target_username = message.command[1].lstrip("@").lower()
 
-    # Find target player
+    # 🔍 Find the target
     target = None
     for p in players:
         username = p.get("username") or p["name"].lstrip("@")
@@ -450,95 +449,95 @@ async def vote_player(client, message: Message):
     if not target:
         return await message.reply("❌ Target not found, not alive, or is invisible.")
 
-    if voter_id in votes:
-        return await message.reply("❌ You already voted this round.")
-
-    # 🛡 Check if target has shield
+    # 🛡 Shield check
     if target.get("shield_active"):
-        target["shield_active"] = False  # Consume shield
+        target["shield_active"] = False
         return await message.reply("🛡 The player blocked your vote with a shield!")
 
-    # 🧮 Initial vote weight
-vote_weight = 1
+    # 🗳️ Already voted check
+    if voter_id in votes and not voter.get("scroll_active"):
+        return await message.reply(
+            "❌ You already voted this round.\n"
+            "📜 Use a Scroll to vote again!"
+        )
 
-# 👻 Ghost logic (one-time vote after death)
-if voter.get("role") == "Ghost" and not voter.get("alive"):
-    if voter.get("ghost_voted"):
-        await message.reply("👻 You already used your Ghost vote!")
-        return
-    voter["ghost_voted"] = True
+    # ✅ Begin vote logic
+    vote_weight = 1
 
-# 😵‍💫 Shadow blinded (vote = 0)
-if voter.get("blinded"):
-    vote_weight = 0
-    voter["blinded"] = False  # Effect used up
+    # 👻 Ghost vote
+    if voter.get("role") == "Ghost" and not voter.get("alive"):
+        if voter.get("ghost_voted"):
+            return await message.reply("👻 You already used your Ghost vote!")
+        voter["ghost_voted"] = True
 
-# 📜 Scroll power (double vote)
-if voter.get("scroll_active"):
-    vote_weight = 2
-    voter["scroll_active"] = False
+    # 😵‍💫 Blinded effect
+    if voter.get("blinded"):
+        vote_weight = 0
+        voter["blinded"] = False
 
-# 🧓 Village Elder power (double vote if Commoner)
-if (
-    voter.get("role") == "Village Elder"
-    and voter.get("type") == "Commoner"
-    and voter.get("double_vote")
-):
-    vote_weight *= 2
+    # 📜 Scroll effect (double vote + override limit)
+    if voter.get("scroll_active"):
+        vote_weight *= 2
+        voter["scroll_active"] = False
 
-# ✅ Register vote
-votes[voter_id] = {
-    "target_id": target["id"],
-    "weight": vote_weight
-}
-game["votes"] = votes
+    # 🧓 Village Elder bonus (only if Commoner)
+    if (
+        voter.get("role") == "Village Elder"
+        and voter.get("type") == "Commoner"
+        and voter.get("double_vote")
+    ):
+        vote_weight *= 2
 
-# ✉️ Notify user
-await message.reply(
-    f"🗳️ You voted against {target['name']}.\n"
-    f"Vote Power: {vote_weight}"
-)
+    # ✅ Register vote
+    votes[voter_id] = {
+        "target_id": target["id"],
+        "weight": vote_weight
+    }
+    game["votes"] = votes
 
-# 🔢 Count votes
-vote_counts = {}
-for vote in votes.values():
-    tid = vote["target_id"]
-    weight = vote["weight"]
-    vote_counts[tid] = vote_counts.get(tid, 0) + weight
+    await message.reply(
+        f"🗳️ You voted against {target['name']}.\n"
+        f"🔢 Vote Power: {vote_weight}"
+    )
 
-# 🧾 Store back to game
-game["vote_counts"] = vote_counts
+    # 🔢 Count votes
+    vote_counts = {}
+    for vote in votes.values():
+        tid = vote["target_id"]
+        weight = vote["weight"]
+        vote_counts[tid] = vote_counts.get(tid, 0) + weight
+    game["vote_counts"] = vote_counts
 
-# 🧮 Calculate total possible voting power (for majority)
-total_votes = 0
-for p in players:
-    if p.get("alive") and not p.get("vote_blocked") and not p.get("silenced") and not p.get("invisible"):
-        if p.get("blinded"):
-            continue
-        if p.get("role") == "Village Elder" and p.get("double_vote"):
-            total_votes += 2
-        else:
+    # 🎯 Calculate majority threshold
+    total_votes = 0
+    for p in players:
+        if p.get("alive") and not p.get("vote_blocked") and not p.get("silenced") and not p.get("invisible"):
+            if p.get("blinded"):
+                continue
+            if p.get("role") == "Village Elder" and p.get("double_vote"):
+                total_votes += 2
+            else:
+                total_votes += 1
+        elif p.get("role") == "Ghost" and not p.get("alive") and not p.get("ghost_voted"):
             total_votes += 1
-    elif p.get("role") == "Ghost" and not p.get("alive") and not p.get("ghost_voted"):
-        total_votes += 1
+    majority = total_votes // 2 + 1
 
-majority = total_votes // 2 + 1
+    # 💀 Check elimination
+    for target_id, count in vote_counts.items():
+        if count >= majority:
+            eliminated = next((p for p in players if p["id"] == target_id), None)
+            if eliminated:
+                eliminated["alive"] = False
+                await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
 
-# 💀 Check for elimination
-for target_id, count in vote_counts.items():
-    if count >= majority:
-        eliminated = next((p for p in players if p["id"] == target_id), None)
-        if eliminated:
-            eliminated["alive"] = False
-            await client.send_message(chat_id, f"💀 {eliminated['name']} was eliminated by vote!")
+                # 🔄 Reset round data
+                game["votes"] = {}
+                for p in players:
+                    p["votes"] = 0
 
-            # Reset votes
-            game["votes"] = {}
-            for p in players:
-                p["votes"] = 0
+                await check_game_end(client, chat_id)
+            break
 
-            await check_game_end(client, chat_id)
-        break
 
 
 
