@@ -107,20 +107,29 @@ async def join_game(client: Client, message: Message):
         return await msg.delete()
 
     # Add player quickly first
-    games[chat_id]["players"].append({
-        "id": user.id,
-        "name": user.first_name,
-        "username": user.username or f"id{user.id}",
-        "alive": True,
-        "role": None,
-        "type": None,
-        "xp": 0,
-        "coins": 0,
-        "level": 1,
-        "votes": 0,
-        "shield_active": False,
-        "scroll_active": False,
-    })
+player_data = {
+    "id": user.id,
+    "name": user.first_name,
+    "username": user.username or f"id{user.id}",
+    "alive": True,
+    "role": None,
+    "type": None,
+    "xp": 0,
+    "coins": 0,
+    "level": 1,
+    "votes": 0,
+    "shield": 0,
+    "scroll": 0,
+    "eliminated": False,
+    "shield_active": False,
+    "scroll_active": False,
+}
+
+games[chat_id]["players"].append(player_data)
+
+# 🔁 Sync to user_data for /profile access anytime (use str(user_id) for consistency)
+user_data[str(user.id)] = player_data.copy()
+
 
     # ✅ Quick join confirmation
     current_count = len(games[chat_id]["players"])
