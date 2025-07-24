@@ -459,47 +459,48 @@ async def vote_player(client, message: Message):
         return await message.reply("🛡 The player blocked your vote with a shield!")
 
     # 🧮 Calculate vote weight
-    vote_weight = 1
+vote_weight = 1
 
-    # 👻 Ghost logic (one-time vote after death)
-    if voter.get("role") == "Ghost" and not voter["alive"]:
-        if voter.get("ghost_voted"):
-            return await message.reply("👻 You already used your Ghost vote!")
-        voter["ghost_voted"] = True
+# 👻 Ghost logic (one-time vote after death)
+if voter.get("role") == "Ghost" and not voter["alive"]:
+    if voter.get("ghost_voted"):
+        return await message.reply("👻 You already used your Ghost vote!")
+    voter["ghost_voted"] = True
 
-    # 😵‍💫 Shadow blinded (vote = 0)
-    if voter.get("blinded"):
-        vote_weight = 0
-        voter["blinded"] = False  # Consume effect
+# 😵‍💫 Shadow blinded (vote = 0)
+if voter.get("blinded"):
+    vote_weight = 0
+    voter["blinded"] = False  # Consume effect
 
-    # 📜 Scroll power (double vote)
-    if voter_player.get("scroll_active"):
-        vote_weight = 2
-        voter_player["scroll_active"] = False  # Consume scroll
+# 📜 Scroll power (double vote)
+if voter.get("scroll_active"):
+    vote_weight = 2
+    voter["scroll_active"] = False  # Consume scroll
 
-    # 🧓 Village Elder power
-    if (
-        voter.get("role") == "Village Elder"
-        and voter.get("type") == "Commoner"
-        and voter.get("double_vote")
-    ):
-        vote_weight *= 2
+# 🧓 Village Elder power
+if (
+    voter.get("role") == "Village Elder"
+    and voter.get("type") == "Commoner"
+    and voter.get("double_vote")
+):
+    vote_weight *= 2
 
-    # ✅ Register vote
-    votes[voter_id] = {"target_id": target["id"], "weight": vote_weight}
-    game["votes"] = votes
+# ✅ Register vote
+votes[voter_id] = {"target_id": target["id"], "weight": vote_weight}
+game["votes"] = votes
 
-    await message.reply(
-        f"🗳️ You voted against {target['name']}.\n"
-        f"Vote Power: {vote_weight}"
-    )
+await message.reply(
+    f"🗳️ You voted against {target['name']}.\n"
+    f"Vote Power: {vote_weight}"
+)
 
-    # 🔢 Count votes
-    vote_counts = {}
-    for vote in votes.values():
-        tid = vote["target_id"]
-        weight = vote["weight"]
-        vote_counts[tid] = vote_counts.get(tid, 0) + weight
+# 🔢 Count votes
+vote_counts = {}
+for vote in votes.values():
+    tid = vote["target_id"]
+    weight = vote["weight"]
+    vote_counts[tid] = vote_counts.get(tid, 0) + weight
+
 
     # 🧮 Calculate total possible voting power (for majority)
     total_votes = 0
